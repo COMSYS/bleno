@@ -261,7 +261,7 @@ int main(int argc, const char* argv[]) {
                   i += 2;
               }
               uint16_t* bufbufbuf = (uint16_t*)outbuf;
-              uint16_t handle = btohs(*bufbufbuf)
+                uint16_t handle = btohs(*bufbufbuf);
               uint16_t min = btohs(*(bufbufbuf+1));
               uint16_t max = btohs(*(bufbufbuf+2));
               uint16_t latency = btohs(*(bufbufbuf+3));
