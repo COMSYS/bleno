@@ -30,12 +30,6 @@ struct l2cap_conn_param_update_req {
 	uint16_t      to_multiplier;
 } __attribute__((__packed__));
 
-int lastSignal = 0;
-
-static void signalHandler(int signal) {
-    lastSignal = signal;
-}
-
 typedef struct {
     uint16_t acl_length; //1+1+2+8 = 12
     uint16_t channel_id;
