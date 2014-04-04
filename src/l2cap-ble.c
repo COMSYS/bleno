@@ -12,7 +12,9 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/l2cap.h>
 
-#define ATT_CID 4
+#define L2CAP_CID_ATT           0x0004
+#define L2CAP_CID_LE_SIGNALING  0x0005
+
 #define L2CAP_CONN_PARAM_UPDATE_REQ 0x12
 
 int lastSignal = 0;
@@ -75,7 +77,7 @@ void le_slave_conn_update(int dd, uint16_t handle, uint16_t min, uint16_t max,
     memset(&sig, 0, sizeof(sig));
     //fill acl header
     sig.acl_length = htobs(12);
-    sig.channel_id = htobs(0x0005);
+    sig.channel_id = htobs(L2CAP_CID_LE_SIGNALING);
     
     // fill header
     sig.code = L2CAP_CONN_PARAM_UPDATE_REQ;
@@ -172,7 +174,7 @@ int main(int argc, const char* argv[]) {
   memset(&sockAddr, 0, sizeof(sockAddr));
   sockAddr.l2_family = AF_BLUETOOTH;
   sockAddr.l2_bdaddr = daddr;
-  sockAddr.l2_cid = htobs(ATT_CID);
+  sockAddr.l2_cid = htobs(L2CAP_CID_ATT);
 
   result = bind(serverL2capSock, (struct sockaddr*)&sockAddr, sizeof(sockAddr));
 
