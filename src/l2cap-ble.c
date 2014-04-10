@@ -6,6 +6,16 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/param.h>
+#include <sys/uio.h>
+#include <sys/poll.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <string.h>
+
+#include "usb_transport.h"
+
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -16,6 +26,7 @@
 #define L2CAP_CID_LE_SIGNALING  0x0005
 
 #define L2CAP_CONN_PARAM_UPDATE_REQ 0x12
+bdaddr_t daddr;
 
 int lastSignal = 0;
 
@@ -23,14 +34,36 @@ static void signalHandler(int signal) {
   lastSignal = signal;
 }
 
+struct acl_request {
+    uint16_t handle;
+    uint16_t chanid;
+    uint8_t command;
+    int      event;
+    int      dlen;
+    void     *data;
+    int     rlen;
+    void    *rparam;
+};
 
 
-struct l2cap_conn_param_update_req {
-	uint16_t      min;
-	uint16_t      max;
-	uint16_t      latency;
-	uint16_t      to_multiplier;
-} __attribute__((__packed__));
+typedef struct {
+	uint16_t min_interval;
+	uint16_t max_interval;
+	uint16_t slave_latency;
+	uint16_t timeout_multiplier;
+} __attribute__((__packed__)) conn_param_update_req;
+
+typedef struct {
+    uint16_t acl_length; //1+1+2+8 = 12
+    uint16_t channel_id;
+} __attribute__((__packed__)) acl_header;
+
+
+typedef struct {
+    uint8_t code; // 0x12
+    uint8_t identifier;
+    uint16_t length;
+} __attribute__((__packed__)) le_signaling_packet;
 
 typedef struct {
     uint16_t acl_length; //1+1+2+8 = 12
@@ -70,9 +103,180 @@ int le_send_acl(int dd, uint16_t handle, uint8_t dlen, void *data)
     return 0;
 }
 
-void le_slave_conn_update(int dd, uint16_t handle, uint16_t min, uint16_t max,
+
+int le_send_acl2(int dd, uint16_t handle, uint16_t channel, uint8_t cmd_identifier, uint16_t dlen, void* data)
+{
+    uint8_t type = HCI_ACLDATA_PKT;
+    hci_acl_hdr ha;
+    uint16_t flags = 0x00;//acl_flags(btohs(handle));
+    uint8_t packet[1024];
+    uint16_t total_len, i;
+    acl_header* acl = (acl_header*)packet;
+    le_signaling_packet* signaling_header = (le_signaling_packet*)(packet+sizeof(acl_header));
+    
+    acl->acl_length = htobs(sizeof(le_signaling_packet) + dlen);
+    acl->channel_id = htobs(channel);
+    
+    signaling_header->code = cmd_identifier;
+    signaling_header->identifier = 0x1;
+    signaling_header->length = htobs(dlen);
+    
+    printf("Pos of data %p\n", data);
+    
+    memcpy((void*)(packet+sizeof(acl_header)+sizeof(le_signaling_packet)), data, dlen);
+    total_len = sizeof(acl_header) + sizeof(le_signaling_packet) + dlen;
+    
+    
+    
+    
+    for (i= 0; i < total_len; i++) {
+        printf("%02x", packet[i]);
+    }
+    printf("DONE\n");
+    
+    
+    
+    ha.handle = htobs(acl_handle_pack(handle, flags));
+    ha.dlen = htobs(total_len);
+    
+    static uint8_t buf[4096];
+    buf[0] = type;
+    memcpy(buf + 1, &ha, HCI_ACL_HDR_SIZE);
+    memcpy(buf + 1 + HCI_ACL_HDR_SIZE, packet, total_len);
+    
+    while (write(dd, buf, total_len + 1 + HCI_ACL_HDR_SIZE) < 0) {
+        if (errno == EAGAIN || errno == EINTR) {
+            printf("Latency: error\n");
+            continue;
+        }
+        printf("Latency: write failed\n");
+        return -1;
+    }
+    printf("Latency: written\n");
+    return 0;
+}
+
+int le_send_alc_request(int dd, struct acl_request* r, int to) {
+    unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
+    struct hci_filter nf, of;
+    socklen_t olen;
+    
+    hci_event_hdr *hdr;
+    int err, try;
+    
+    /*
+    olen = sizeof(of);
+    if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0)
+        return -1;
+    
+    hci_filter_clear(&nf);
+    hci_filter_set_ptype(HCI_EVENT_PKT,  &nf);
+    hci_filter_set_event(EVT_CMD_STATUS, &nf);
+    hci_filter_set_event(EVT_CMD_COMPLETE, &nf);
+    hci_filter_set_event(EVT_LE_META_EVENT, &nf);
+    hci_filter_set_event(r->event, &nf);
+    //hci_filter_set_opcode(opcode, &nf);
+    if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0)
+    {
+        printf("Error getting filters\n");
+        return -1;
+    }*/
+    
+    if (le_send_acl2(dd, r->handle, r->chanid, r->command, r->dlen, r->data) < 0)
+        goto failed;
+    
+    try = 10;
+	while (try--) {
+		evt_cmd_complete *cc;
+		evt_cmd_status *cs;
+		evt_remote_name_req_complete *rn;
+		evt_le_meta_event *me;
+		remote_name_req_cp *cp;
+		int len;
+        
+		if (to) {
+			struct pollfd p;
+			int n;
+            
+			p.fd = dd; p.events = POLLIN;
+			while ((n = poll(&p, 1, to)) < 0) {
+				if (errno == EAGAIN || errno == EINTR)
+					continue;
+                printf("Error polling data\n");
+				goto failed;
+			}
+            
+			if (!n) {
+				errno = ETIMEDOUT;
+                printf("timed out\n");
+				goto failed;
+			}
+            
+			to -= 10;
+			if (to < 0)
+				to = 0;
+            
+		}
+        
+		while ((len = read(dd, buf, sizeof(buf))) < 0) {
+			if (errno == EAGAIN || errno == EINTR)
+				continue;
+            printf("Error reading event\n");
+			goto failed;
+		}
+        
+		hdr = (void *) (buf + 1);
+		ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
+		len -= (1 + HCI_EVENT_HDR_SIZE);
+        
+		switch (hdr->evt) {
+            case EVT_LE_META_EVENT:
+                me = (void *) ptr;
+                
+                if (me->subevent != r->event)
+                    continue;
+                
+                len -= 1;
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, me->data, r->rlen);
+                goto done;
+                
+            default:
+                if (hdr->evt != r->event)
+                    break;
+                
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, ptr, r->rlen);
+                len = r->rlen;
+                for (; len > 0; len--) {
+                    printf("%02x ", ptr[r->rlen - len]);
+                }
+                printf("DONE\n");
+                goto done;
+		}
+	}
+	errno = ETIMEDOUT;
+    
+failed:
+	err = errno;
+	setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
+	errno = err;
+    printf("Errno %s", strerror(errno));
+	return -1;
+    
+done:
+	setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
+	return 0;
+}
+
+int le_slave_conn_update(int dd, uint16_t handle, uint16_t min, uint16_t max,
                           uint16_t latency, uint16_t to_multiplier)
 {
+    int eventfd;
+    fd_set rfds;
+    struct timeval timeout;
+    int len, i, result;
+    uint8_t buffer[HCI_MAX_EVENT_SIZE];
     le_signaling_packet_conn_update_req sig;
     memset(&sig, 0, sizeof(sig));
     //fill acl header
@@ -91,9 +295,48 @@ void le_slave_conn_update(int dd, uint16_t handle, uint16_t min, uint16_t max,
     sig.timeout_multiplier = htobs(to_multiplier);
     
     
+
+    
     le_send_acl(dd, handle, sizeof(sig), &sig);
     
 }
+
+int le_slave_conn_update2(int dd, uint16_t handle, uint16_t min, uint16_t max,
+                         uint16_t latency, uint16_t to_multiplier)
+{
+   
+    struct acl_request rq;
+    conn_param_update_req req;
+    int i = 0;
+    
+    memset(&rq, 0, sizeof(struct acl_request));
+    memset(&req, 0, sizeof(conn_param_update_req));
+    
+    req.min_interval = htobs(min);
+    req.max_interval = htobs(max);
+    req.slave_latency = htobs(latency);
+    req.timeout_multiplier = htobs(to_multiplier);
+    
+    printf("DATA SET TO ");
+    for (; i < sizeof(conn_param_update_req); i++) {
+        printf("%02x", *(((uint8_t*)&req)+i));
+    }
+    printf("END\n");
+    printf("Pos of data %p\n", &req);
+    rq.handle = handle;
+    rq.chanid = L2CAP_CID_LE_SIGNALING;
+    rq.command = L2CAP_CONN_PARAM_UPDATE_REQ;
+    rq.data = &req;
+    rq.dlen = sizeof(conn_param_update_req);
+    
+    if(le_send_alc_request(dd, &rq, 1000) < 0) {
+        printf("Error setting conn update\n");
+    }else {
+        printf("Conn update success\n");
+    }
+    
+}
+
 int strpos(char *haystack, char *needle)
 {
     char *p = strstr(haystack, needle);
@@ -121,7 +364,8 @@ int main(int argc, const char* argv[]) {
   fd_set afds;
   fd_set rfds;
   struct timeval tv;
-
+  
+  uint8_t hciBuf[1024];
   char stdinBuf[256 * 2 + 1 + 10];
   char l2capSockBuf[256];
   int len;
@@ -160,7 +404,7 @@ int main(int argc, const char* argv[]) {
     hciDeviceId = 0; // use device 0, if device id is invalid
   }
   
-  bdaddr_t daddr;
+  
   hciSocket = hci_open_dev(hciDeviceId);
   if (hciSocket == -1) {
     printf("adapterState unsupported\n");
@@ -209,17 +453,19 @@ int main(int argc, const char* argv[]) {
       l2capConnInfoLen = sizeof(l2capConnInfo);
       getsockopt(clientL2capSock, SOL_L2CAP, L2CAP_CONNINFO, &l2capConnInfo, &l2capConnInfoLen);
       hciHandle = l2capConnInfo.hci_handle;
+
         
       printf("hciHandle %d\n", hciHandle);
       while(1) {
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
+        FD_SET(hciSocket, &rfds);
         FD_SET(clientL2capSock, &rfds);
 
         tv.tv_sec = 1;
         tv.tv_usec = 0;
 
-        result = select(clientL2capSock + 1, &rfds, NULL, NULL, &tv);
+        result = select(1024, &rfds, NULL, NULL, &tv);
 
         if (-1 == result) {
           if (SIGINT == lastSignal || SIGKILL == lastSignal) {
@@ -269,10 +515,16 @@ int main(int argc, const char* argv[]) {
               uint16_t latency = btohs(*(bufbufbuf+3));
               uint16_t to_multiplier = btohs(*(bufbufbuf+4));
               printf("Setting latency to %d (*1.25ms) %d (*1.25ms) %d %d \n", min, max, latency, to_multiplier);
-              le_slave_conn_update(hciSocket, handle, min, max, latency, to_multiplier);
-              // todo block for read on hci socket
+                
+              le_slave_conn_update2(hciSocket, handle, min, max, latency, to_multiplier);
+                              // todo block for read on hci socket
               //read(hciSocket, l2capSockBuf, sizeof(l2capSockBuf));
-              
+
+              l2capConnInfoLen = sizeof(l2capConnInfo);
+              getsockopt(clientL2capSock, SOL_L2CAP, L2CAP_CONNINFO, &l2capConnInfo, &l2capConnInfoLen);
+              hciHandle = l2capConnInfo.hci_handle;
+                
+              printf("Conn handle %d\n", hciHandle);
               
             }else if (strpos(stdinBuf, "data") == 0)  {
               char* buffer = stdinBuf+4;
@@ -284,9 +536,26 @@ int main(int argc, const char* argv[]) {
                   i += 2;
               }
               // -1 for \n  -4 for "data"
+                printf("Before write\n");
               len = write(clientL2capSock, l2capSockBuf, (len - 1 - 4) / 2);
+                printf("After write\n");
+                if (len == -1) {
+                    printf("Error writing to client %d: %s\n", errno, strerror(errno));
+                }
             }
 
+          }
+          if(FD_ISSET(hciSocket, &rfds)) {
+              len = read(hciSocket, (void*)hciBuf, sizeof(hciBuf));
+              if (len <= 0) {
+                  break;
+              }
+              i = 0;
+              printf("HCI READ");
+              for (i = 0; i < len; i++) {
+                  printf("%02x ", hciBuf[i]);
+              }
+              printf("END\n");
           }
 
           if (FD_ISSET(clientL2capSock, &rfds)) {
