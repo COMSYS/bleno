@@ -464,7 +464,7 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     
         len_written = write(clientSocket, l2capSockBuf, (data_len) / 2);
         
-        nanosleep(&tim, NULL);
+        //nanosleep(&tim, NULL);
  
         if (len_written == -1) {
             printf("Error writing to client %d: %s\n", errno, strerror(errno));
