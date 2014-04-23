@@ -469,7 +469,7 @@ void process_data(int clientSocket, uint8_t* buf, int len)
             l2capSockBuf[j / 2] = data;
             j += 2;
         }
-        // skip packet + \n     
+        // skip packet + \n
         i += j+1;
     
         len_written = write(clientSocket, l2capSockBuf, (data_len) / 2);
@@ -858,9 +858,7 @@ int main(int argc, const char* argv[])
                 
                 if (len <= 0) {
                     printf("L2CAP Client sock collapsed\n");
-                    close(clientL2capSock);
-		    clientL2capSock = 0;
-		    continue;
+                        
                 }
                 
                 
