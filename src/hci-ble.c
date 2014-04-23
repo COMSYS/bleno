@@ -823,7 +823,9 @@ int main(int argc, const char* argv[])
                 
                 if (len <= 0) {
                     printf("L2CAP Client sock collapsed\n");
-                    break;
+                    close(clientL2capSock);
+		    clientL2capSock = 0;
+		    continue;
                 }
                 
                 
