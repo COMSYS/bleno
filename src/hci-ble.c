@@ -436,24 +436,39 @@ int8_t read_rssi(int hciSocket, int hciHandle) {
 void process_data(int clientSocket, uint8_t* buf, int len)
 {
     int i = 0;
-    uint8_t l2capSockBuf[256];
-   struct timespec tim;
-   tim.tv_sec = 0;
-   tim.tv_nsec = 100000000L;
-
-    while(buf[i] != '\n') {
-        unsigned int data = 0;
-        sscanf((char*)&buf[i], "%02x", &data);
-        l2capSockBuf[i / 2] = data;
-        i += 2;
-    }
-    // -1 for \n  -4 for "data"
-    //printf("Before write\n");
-    len = write(clientSocket, l2capSockBuf, (len - 1) / 2);
-    nanosleep(&tim, NULL);
-    //printf("After write\n");
-    if (len == -1) {
-        printf("Error writing to client %d: %s\n", errno, strerror(errno));
+    int j = 0;
+    int skip = 0;
+    uint8_t l2capSockBuf[512];
+    uint32_t data_len;
+    int len_written;
+    struct timespec tim;
+    tim.tv_sec = 0;
+    tim.tv_nsec = 100000000L;
+    
+    while (i < len) {
+    
+        if (get_cmd(buf, &skip) != -1) {
+            i += skip;
+        }
+        data_len = btohs(*(uint32_t*)buf);
+        i += sizeof(uint32_t);
+        j = 0;
+        while(j < i+data_len) {
+            unsigned int data = 0;
+            sscanf((char*)&buf[i+j], "%02x", &data);
+            l2capSockBuf[j / 2] = data;
+            j += 2;
+        }
+        // skip packet
+        i += j;
+    
+        len_written = write(clientSocket, l2capSockBuf, (data_len) / 2);
+        
+        nanosleep(&tim, NULL);
+ 
+        if (len_written == -1) {
+            printf("Error writing to client %d: %s\n", errno, strerror(errno));
+        }
     }
 }
 
