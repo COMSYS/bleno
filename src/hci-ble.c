@@ -38,6 +38,7 @@
 #define CMD_READ_RSSI 4
 #define CMD_READ_RSSI_STR "readrssi"
 
+static const int L2CAP_SO_SNDBUF = 400 * 1024;
 
 int lastSignal = 0;
 
@@ -436,6 +437,10 @@ void process_data(int clientSocket, uint8_t* buf, int len)
 {
     int i = 0;
     uint8_t l2capSockBuf[256];
+   struct timespec tim;
+   tim.tv_sec = 0;
+   tim.tv_nsec = 100000000L;
+
     while(buf[i] != '\n') {
         unsigned int data = 0;
         sscanf((char*)&buf[i], "%02x", &data);
@@ -443,9 +448,10 @@ void process_data(int clientSocket, uint8_t* buf, int len)
         i += 2;
     }
     // -1 for \n  -4 for "data"
-    printf("Before write\n");
+    //printf("Before write\n");
     len = write(clientSocket, l2capSockBuf, (len - 1) / 2);
-    printf("After write\n");
+    nanosleep(&tim, NULL);
+    //printf("After write\n");
     if (len == -1) {
         printf("Error writing to client %d: %s\n", errno, strerror(errno));
     }
@@ -776,6 +782,10 @@ int main(int argc, const char* argv[])
                 hciHandle = l2capConnInfo.hci_handle;
                 
                 printf("l2cap_hciHandle %d\n", hciHandle);
+
+		if (setsockopt(clientL2capSock, SOL_SOCKET, SO_SNDBUF, &L2CAP_SO_SNDBUF, sizeof(L2CAP_SO_SNDBUF))) {
+			printf("Error increasing sendbuffer\n");
+		}
             }
             
             
