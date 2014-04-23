@@ -450,8 +450,18 @@ void process_data(int clientSocket, uint8_t* buf, int len)
         if (get_cmd(buf, &skip) != -1) {
             i += skip;
         }
-        data_len = btohs(*(uint32_t*)buf);
-        i += sizeof(uint32_t);
+        unsigned int data = 0;
+        sscanf((char*)&buf[i], "%02x", &data);
+        l2capSockBuf[0] = data;
+        sscanf((char*)&buf[i+2], "%02x", &data);
+        l2capSockBuf[1] = data;
+        sscanf((char*)&buf[i+4], "%02x", &data);
+        l2capSockBuf[2] = data;
+        sscanf((char*)&buf[i+6], "%02x", &data);
+        l2capSockBuf[3] = data;
+        i += 8;
+        
+        data_len = btohs(*(uint32_t*)l2capSockBuf);
         j = 0;
         while(j < i+data_len) {
             unsigned int data = 0;
@@ -459,8 +469,8 @@ void process_data(int clientSocket, uint8_t* buf, int len)
             l2capSockBuf[j / 2] = data;
             j += 2;
         }
-        // skip packet
-        i += j;
+        // skip packet + \n     
+        i += j+1;
     
         len_written = write(clientSocket, l2capSockBuf, (data_len) / 2);
         
