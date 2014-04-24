@@ -201,16 +201,16 @@ int le_send_alc_request(int dd, struct acl_request* r, int to) {
     hci_event_hdr *hdr;
     int err, try;
     
-     
-     hci_filter_clear(&nf);
-     hci_filter_set_ptype(HCI_ACLDATA_PKT,  &nf);
-     hci_filter_all_events(&nf);
-     //hci_filter_set_opcode(opcode, &nf);
-     if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0)
-     {
-     printf("Error getting filters\n");
-     return -1;
-     }
+    
+    hci_filter_clear(&nf);
+    hci_filter_set_ptype(HCI_ACLDATA_PKT,  &nf);
+    hci_filter_all_events(&nf);
+    //hci_filter_set_opcode(opcode, &nf);
+    if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0)
+    {
+        printf("Error getting filters\n");
+        return -1;
+    }
     
     if (le_send_acl2(dd, r->handle, r->chanid, r->command, r->dlen, r->data) < 0) {
         printf("Failed sending acl");
@@ -240,11 +240,11 @@ int le_send_alc_request(int dd, struct acl_request* r, int to) {
 		len = recvmsg(dd, &msg, MSG_DONTWAIT);
 		if (len < 0) {
             /*
-            if (errno == EAGAIN) {
-                printf("No data on socket yet, retrying");
-                sleep(1);
-                continue;
-            }
+             if (errno == EAGAIN) {
+             printf("No data on socket yet, retrying");
+             sleep(1);
+             continue;
+             }
              */
             printf("hci socket collapsed\n");
 			break;
@@ -253,7 +253,7 @@ int le_send_alc_request(int dd, struct acl_request* r, int to) {
 		for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL;
              cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 			if (cmsg->cmsg_level != SOL_HCI)
-				continue;
+            continue;
             
 			switch (cmsg->cmsg_type) {
                 case HCI_DATA_DIR:
@@ -274,7 +274,7 @@ int le_send_alc_request(int dd, struct acl_request* r, int to) {
         printf("GOT DATA ON HCI SOCKET");
     }
 	
-   // errno = ETIMEDOUT;
+    // errno = ETIMEDOUT;
     
 failed:
 	err = errno;
@@ -365,7 +365,7 @@ int hci_reset(int ctl, int hdev)
     
     if (ioctl(ctl, HCIDEVUP, hdev) < 0) {
         if (errno == EALREADY)
-            return;
+        return;
         fprintf(stderr, "Can't init device hci%d: %s (%d)\n", hdev, strerror(errno), errno);
     }
     
@@ -390,7 +390,7 @@ int hci_le_set_advertising_data(int dd, uint8_t* data, uint8_t length, int to)
     rq.rlen = 1;
     
     if (hci_send_req(dd, &rq, to) < 0)
-        return -1;
+    return -1;
     
     if (status) {
         errno = EIO;
@@ -419,7 +419,7 @@ int hci_le_set_scan_response_data(int dd, uint8_t* data, uint8_t length, int to)
     rq.rlen = 1;
     
     if (hci_send_req(dd, &rq, to) < 0)
-        return -1;
+    return -1;
     
     if (status) {
         errno = EIO;
@@ -437,7 +437,7 @@ static int create_socket(uint16_t index, uint16_t channel)
     fd = socket(PF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK,
                 BTPROTO_HCI);
     if (fd < 0)
-        return -1;
+    return -1;
     
     memset(&addr, 0, sizeof(addr));
     addr.hci_family = AF_BLUETOOTH;
@@ -487,7 +487,7 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     //printf("Attempting to write %d bytes to l2capsocket", len);
     
     len_written = write(clientSocket, buf, len);
- 
+    
     if (len_written == -1) {
         printf("Error writing to client %d: %s\n", errno, strerror(errno));
     }
@@ -518,7 +518,7 @@ void set_latency(int hciSocket, uint8_t* buf, int len)
 void set_latency_opt(int l2capSock, uint8_t* buf, int len)
 {
     conn_param_update_req req;
-
+    
     uint16_t* bufbufbuf = (uint16_t*)buf;
     uint16_t handle = ntohs(*bufbufbuf);
     uint16_t min = ntohs(*(bufbufbuf+1));
@@ -548,7 +548,7 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len) {
     buf += 2;
     memcpy(advertisementDataBuf, buf, advertisementDataLen);
     memcpy(scanDataBuf, buf+advertisementDataLen, scanDataLen);
-
+    
     
     // stop advertising
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
@@ -573,7 +573,7 @@ int strpos(char *haystack, char *needle)
 {
     char *p = strstr(haystack, needle);
     if (p)
-        return p - haystack;
+    return p - haystack;
     return -1;   // Not found = -1.
 }
 
@@ -741,7 +741,7 @@ int main(int argc, const char* argv[])
         
         FD_ZERO(&rfds);
         //FD_SET(0, &rfds);
-       
+        
         FD_SET(localServerSocket, &rfds);
         if (clientL2capSock > 0) {
             FD_SET(clientL2capSock, &rfds);
@@ -757,39 +757,39 @@ int main(int argc, const char* argv[])
         tv.tv_usec = 0;
         
         if (localClientSocket > 0) {
-        // get HCI dev info for adapter state
-        ioctl(hciSocket, HCIGETDEVINFO, (void *)&hciDevInfo);
-        currentAdapterState = hci_test_bit(HCI_UP, &hciDevInfo.flags);
-        
-        if (previousAdapterState != currentAdapterState) {
-            previousAdapterState = currentAdapterState;
+            // get HCI dev info for adapter state
+            ioctl(hciSocket, HCIGETDEVINFO, (void *)&hciDevInfo);
+            currentAdapterState = hci_test_bit(HCI_UP, &hciDevInfo.flags);
             
-            if (!currentAdapterState) {
-                adapterState = "poweredOff";
-            } else {
-                hci_le_set_advertise_enable(hciSocket, 0, 1000);
+            if (previousAdapterState != currentAdapterState) {
+                previousAdapterState = currentAdapterState;
                 
-                hci_le_set_advertise_enable(hciSocket, 1, 1000);
-                
-                if (hci_le_set_advertise_enable(hciSocket, 0, 1000) == -1) {
-                    if (EPERM == errno) {
-                        adapterState = "unauthorized";
-                    } else if (EIO == errno) {
-                        adapterState = "unsupported";
-                    } else {
-                        printf("%d\n", errno);
-                        adapterState = "unknown";
-                    }
+                if (!currentAdapterState) {
+                    adapterState = "poweredOff";
                 } else {
-                    adapterState = "poweredOn";
+                    hci_le_set_advertise_enable(hciSocket, 0, 1000);
+                    
+                    hci_le_set_advertise_enable(hciSocket, 1, 1000);
+                    
+                    if (hci_le_set_advertise_enable(hciSocket, 0, 1000) == -1) {
+                        if (EPERM == errno) {
+                            adapterState = "unauthorized";
+                        } else if (EIO == errno) {
+                            adapterState = "unsupported";
+                        } else {
+                            printf("%d\n", errno);
+                            adapterState = "unknown";
+                        }
+                    } else {
+                        adapterState = "poweredOn";
+                    }
                 }
+                out_header->type = CMD_ADAPTERSTATE;
+                out_header->length = htonl(strlen(adapterState));
+                memcpy(out_data_buf, adapterState, ntohl(out_header->length));
+                write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                //printf("adapterState %s\n", adapterState);
             }
-            out_header->type = CMD_ADAPTERSTATE;
-            out_header->length = htonl(strlen(adapterState));
-            memcpy(out_data_buf, adapterState, ntohl(out_header->length));
-            write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
-            //printf("adapterState %s\n", adapterState);
-        }
         }
         
         selectRetval = select(1024, &rfds, NULL, NULL, &tv);
@@ -848,7 +848,7 @@ int main(int argc, const char* argv[])
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
-
+                
             }
             
             if (FD_ISSET(localServerSocket, &rfds)) {
@@ -927,7 +927,7 @@ int main(int argc, const char* argv[])
                 }
                 
             }
-
+            
             if (clientL2capSock > 0 && FD_ISSET(clientL2capSock, &rfds)) {
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
@@ -935,58 +935,55 @@ int main(int argc, const char* argv[])
                     printf("L2CAP Client sock collapsed\n");
                     close(clientL2capSock);
                     clientL2capSock = 0;
-                }
-                
-                
-                
-                btSecurityLen = sizeof(btSecurity);
-                memset(&btSecurity, 0, btSecurityLen);
-                getsockopt(clientL2capSock, SOL_BLUETOOTH, BT_SECURITY, &btSecurity, &btSecurityLen);
-                
-                if (securityLevel != btSecurity.level) {
-                    securityLevel = btSecurity.level;
+                }else {
+                    btSecurityLen = sizeof(btSecurity);
+                    memset(&btSecurity, 0, btSecurityLen);
+                    getsockopt(clientL2capSock, SOL_BLUETOOTH, BT_SECURITY, &btSecurity, &btSecurityLen);
                     
-                    const char *securityLevelString;
-                    
-                    switch(securityLevel) {
-                        case BT_SECURITY_LOW:
-                            securityLevelString = "low";
-                            break;
-                            
-                        case BT_SECURITY_MEDIUM:
-                            securityLevelString = "medium";
-                            break;
-                            
-                        case BT_SECURITY_HIGH:
-                            securityLevelString = "high";
-                            break;
-                            
-                        default:
-                            securityLevelString = "unknown";
-                            break;
+                    if (securityLevel != btSecurity.level) {
+                        securityLevel = btSecurity.level;
+                        
+                        const char *securityLevelString;
+                        
+                        switch(securityLevel) {
+                            case BT_SECURITY_LOW:
+                                securityLevelString = "low";
+                                break;
+                                
+                            case BT_SECURITY_MEDIUM:
+                                securityLevelString = "medium";
+                                break;
+                                
+                            case BT_SECURITY_HIGH:
+                                securityLevelString = "high";
+                                break;
+                                
+                            default:
+                                securityLevelString = "unknown";
+                                break;
+                        }
+                        out_header->type = CMD_SECURITY;
+                        out_header->length = htonl(strlen(securityLevelString));
+                        memcpy(out_data_buf, securityLevelString, ntohl(out_header->length));
+                        write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                        
+                        //printf("l2cap_security %s\n", securityLevelString);
                     }
-                    out_header->type = CMD_SECURITY;
-                    out_header->length = htonl(strlen(securityLevelString));
-                    memcpy(out_data_buf, securityLevelString, ntohl(out_header->length));
-                    write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                     
-                    //printf("l2cap_security %s\n", securityLevelString);
-                }
-                if(len > 0) {
                     out_header->type = CMD_L2CAP_DATA;
                     out_header->length = htonl(len);
                 	write(localClientSocket,outbuf, sizeof(bleno_header));
                 	write(localClientSocket,l2capSockBuf, len);
                 }
                 /*
-                printf("l2cap_data ");
-                for(i = 0; i < len; i++) {
-                    printf("%02x", ((int)l2capSockBuf[i]) & 0xff);
-                }
-                printf("\n");
-                */
+                 printf("l2cap_data ");
+                 for(i = 0; i < len; i++) {
+                 printf("%02x", ((int)l2capSockBuf[i]) & 0xff);
+                 }
+                 printf("\n");
+                 */
             }
-
+            
             if(FD_ISSET(hciSocket, &rfds)) {
                 len = read(hciSocket, (void*)hciBuf, sizeof(hciBuf));
                 if (len <= 0) {
