@@ -714,7 +714,7 @@ int main(int argc, const char* argv[])
     
     
     int localServerSocket,localClientSocket,n,port;
-    localClientSocket = 0;
+    localClientSocket = -1;
     struct sockaddr_in servaddr,cliaddr;
     socklen_t addrlen,clilen;
     char mesg[1000];
@@ -738,7 +738,7 @@ int main(int argc, const char* argv[])
         uint8_t outbuf[4096];
         bleno_header* out_header = (bleno_header*)outbuf;
         uint8_t* out_data_buf = outbuf + sizeof(bleno_header);
-        
+        int max_sock;
         FD_ZERO(&rfds);
         //FD_SET(0, &rfds);
         
@@ -748,11 +748,11 @@ int main(int argc, const char* argv[])
         }
         // wait for client before we interact with the socket
         if(localClientSocket > 0) {
-            FD_SET(localClientSocket, &rfds);
             FD_SET(hciSocket, &rfds);
             FD_SET(serverL2capSock, &rfds);
+            FD_SET(localClientSocket, &rfds);
         }
-        
+        int max_sock = MAX(localServerSocket, MAX(clientL2capSock, MAX(hciSocket, MAX(serverL2capSock, localClientSocket)));
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
@@ -792,7 +792,7 @@ int main(int argc, const char* argv[])
             }
         }
         
-        selectRetval = select(1024, &rfds, NULL, NULL, &tv);
+        selectRetval = select(max_sock+1, &rfds, NULL, NULL, &tv);
         
         if (selectRetval == -1) {
             if (SIGINT == lastSignal || SIGKILL == lastSignal) {
@@ -901,15 +901,17 @@ int main(int argc, const char* argv[])
                         break;
                     case CMD_DISCONNECT:
                         printf("Got disconnect data\n");
-                        strClientBdAddr = batostr(&clientBdAddr);
-                        out_header->type = CMD_DISCONNECTED;
-                        out_header->length = htonl(strlen(strClientBdAddr));
-                        memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
-                        write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                        hci_disconnect(hciSocket, hciHandle, HCI_OE_USER_ENDED_CONNECTION, 1000);
+                        
+                        //strClientBdAddr = batostr(&clientBdAddr);
+                        //out_header->type = CMD_DISCONNECTED;
+                        //out_header->length = htonl(strlen(strClientBdAddr));
+                        //memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
+                        //write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                         
                         //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
-                        close(clientL2capSock);
-                        clientL2capSock = -1;
+                        //close(clientL2capSock);
+                        //clientL2capSock = -1;
                         break;
                     case CMD_READ_RSSI:
                         printf("Got read rssi data\n");
