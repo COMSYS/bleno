@@ -854,11 +854,12 @@ int main(int argc, const char* argv[])
                 while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
                     offset += len;
                 }
+                printf("Got header\n");
                 if (len <= 0) {
                     close(localClientSocket);
                     continue;
                 }
-                int total_size = sizeof(bleno_header)+header->length;
+                int total_size = sizeof(bleno_header)+ntohl(header->length);
                 while (offset != total_size && ((len = read(localClientSocket, inputBuffer+offset, total_size-offset))) > 0) {
                     offset += len;
                 }
