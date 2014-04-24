@@ -781,7 +781,7 @@ int main(int argc, const char* argv[])
         if (selectRetval == -1) {
             if (SIGINT == lastSignal || SIGKILL == lastSignal) {
                 // done
-                printf("Got sig int or kill");
+                printf("Got sig int or kill\n");
                 break;
             } else if (SIGHUP == lastSignal) {
                 // stop advertising
@@ -996,6 +996,7 @@ int main(int argc, const char* argv[])
     printf("close\n");
     close(localClientSocket);
     close(localServerSocket);
+    close(clientL2capSock);
     close(serverL2capSock);
     // stop advertising
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
