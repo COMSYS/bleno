@@ -38,6 +38,9 @@
 #define CMD_READ_RSSI 4
 #define CMD_READ_RSSI_STR "readrssi"
 
+#define BUFSIZ 256000
+char stdinbuffer[BUFSIZ];
+
 static const int L2CAP_SO_SNDBUF = 400 * 1024;
 
 int lastSignal = 0;
@@ -640,7 +643,7 @@ int main(int argc, const char* argv[])
     memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
     
     // remove buffering
-    setbuf(stdin, NULL);
+    setvbuf(stdin, stdinbuffer, _IOFBF, BUFSIZ);
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
     
