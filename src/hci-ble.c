@@ -704,7 +704,7 @@ int main(int argc, const char* argv[])
     
     printf("l2cap_bind %s\n", (result == -1) ? strerror(errno) : "success");
     
-    result = listen(serverL2capSock, 1);
+    result = listen(serverL2capSock, 2);
     
     printf("l2cap_listen %s\n", (result == -1) ? strerror(errno) : "success");
     
@@ -972,7 +972,7 @@ int main(int argc, const char* argv[])
                     
                     //printf("l2cap_security %s\n", securityLevelString);
                 }
-                if(len) {
+                if(len > 0) {
                     out_header->type = CMD_L2CAP_DATA;
                     out_header->length = htonl(len);
                 	write(localClientSocket,outbuf, sizeof(bleno_header));
