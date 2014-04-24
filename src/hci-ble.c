@@ -470,7 +470,7 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     tim.tv_sec = 0;
     tim.tv_nsec = 100000000L;
     
-    printf("Attempting to write %d bytes to l2capsocket", len);
+    //printf("Attempting to write %d bytes to l2capsocket", len);
     
     len_written = write(clientSocket, buf, len);
  
@@ -841,9 +841,7 @@ int main(int argc, const char* argv[])
             if (FD_ISSET(localServerSocket, &rfds)) {
                 // accept client
                 clilen=sizeof(cliaddr);
-                printf("Before accept\n");
                 localClientSocket = accept(localServerSocket,(struct sockaddr *)&cliaddr, &clilen);
-                printf("Accepted connection\n");
             }
             
             if (FD_ISSET(localClientSocket, &rfds)) {
@@ -853,11 +851,9 @@ int main(int argc, const char* argv[])
                 int len;
                 int offset = 0;
                 // read the header
-                printf("Reading data from client\n");
                 while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
                     offset += len;
                 }
-                printf("Got header\n");
                 if (len <= 0) {
                     close(localClientSocket);
                     break;
