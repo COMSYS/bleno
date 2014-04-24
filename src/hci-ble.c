@@ -664,7 +664,7 @@ int main(int argc, const char* argv[])
     bdaddr_t clientBdAddr;
     struct l2cap_conninfo l2capConnInfo;
     socklen_t l2capConnInfoLen;
-    int hciHandle;
+    uint16_t hciHandle;
     bdaddr_t daddr;
     char l2capSockBuf[256];
     struct bt_security btSecurity;
@@ -826,8 +826,8 @@ int main(int argc, const char* argv[])
                 hciHandle = l2capConnInfo.hci_handle;
                 
                 out_header->type = CMD_HCIHANDLE;
-                out_header->length = htonl(sizeof(uint32_t));
-                *out_data_buf = htonl((uint32_t)hciHandle);
+                out_header->length = htonl(sizeof(uint16_t));
+                *out_data_buf = htonl((uint16_t)hciHandle);
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
