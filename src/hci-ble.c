@@ -61,6 +61,8 @@ typedef struct bleno_header_ {
 #define CMD_L2CAP_DATA_STR "l2cap_data"
 
 #define BUFSIZ 256000
+
+#define MAX(a,b) (a) > (b) ? (a) : (b)
 char stdinbuffer[BUFSIZ];
 
 static const int L2CAP_SO_SNDBUF = 400 * 1024;
@@ -752,7 +754,7 @@ int main(int argc, const char* argv[])
             FD_SET(serverL2capSock, &rfds);
             FD_SET(localClientSocket, &rfds);
         }
-        int max_sock = MAX(localServerSocket, MAX(clientL2capSock, MAX(hciSocket, MAX(serverL2capSock, localClientSocket)));
+        int max_sock = MAX(localServerSocket, MAX(clientL2capSock, MAX(hciSocket, MAX(serverL2capSock, localClientSocket))));
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
