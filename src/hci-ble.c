@@ -858,7 +858,9 @@ int main(int argc, const char* argv[])
                 
                 if (len <= 0) {
                     printf("L2CAP Client sock collapsed\n");
-                        
+                    close(clientL2capSock);
+                    clientL2capSock = 0;
+                    continue;
                 }
                 
                 
@@ -904,7 +906,7 @@ int main(int argc, const char* argv[])
                 len = read(hciSocket, (void*)hciBuf, sizeof(hciBuf));
                 if (len <= 0) {
                     printf("HCI socket collapsed\n");
-                    break;
+                    continue;
                 }
                 i = 0;
                 printf("HCI READ");
