@@ -613,8 +613,8 @@ int main(int argc, const char* argv[])
     
     memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
     
-    // buffering
-    setvbuf(stdin, stdinbuffer, _IOFBF, BUFSIZ);
+    // buffering aus
+    setbuf(stdin, NULL);
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
     
