@@ -470,6 +470,8 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     tim.tv_sec = 0;
     tim.tv_nsec = 100000000L;
     
+    printf("Attempting to write %d bytes to l2capsocket", len);
+    
     len_written = write(clientSocket, buf, len);
  
     if (len_written == -1) {
@@ -869,7 +871,7 @@ int main(int argc, const char* argv[])
                 }
                 
                 uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
-                int data_len = header->length;
+                int data_len = ntohl(header->length);
                 char* strClientBdAddr;
                 
                 uint8_t rssi;
