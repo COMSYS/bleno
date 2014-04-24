@@ -708,7 +708,7 @@ int main(int argc, const char* argv[])
     servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
     servaddr.sin_port = htons(0);
     bind(localServerSocket,(struct sockaddr *)&servaddr,sizeof(servaddr));
-
+    addrlen = sizeof(struct sockaddr_in);
     getsockname(localServerSocket,(struct sockaddr*)&servaddr, &addrlen);
     port=ntohs(servaddr.sin_port);
     
