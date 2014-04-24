@@ -19,6 +19,12 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/l2cap.h>
 
+
+typedef struct bleno_header_ {
+    uint8_t type;
+    uint32_t length;
+} __attribute__((__packed__)) bleno_header;
+
 #define L2CAP_CID_ATT           0x0004
 #define L2CAP_CID_LE_SIGNALING  0x0005
 
@@ -37,6 +43,20 @@
 #define CMD_DISCONNECT_STR "disconnect"
 #define CMD_READ_RSSI 4
 #define CMD_READ_RSSI_STR "readrssi"
+#define CMD_RSSI 5
+#define CMD_RSSI_STR "l2cap_rssi"
+#define CMD_DISCONNECTED 6
+#define CMD_DISCONNECTED_STR "l2cap_disconnect"
+#define CMD_ACCEPTED 7
+#deifne CMD_ACCEPTED_STR "l2cap_accept"
+#define CMD_HCIHANDLE 8
+#define CMD_HCIHANDLE_STR "l2cap_hciHandle"
+#define CMD_ADAPTERSTATE 9
+#define CMD_ADAPTERSTATE_STR "adapterState"
+#define CMD_SECURITY    10
+#define CMD_SECURITY_STR "l2cap_security"
+#define CMD_L2CAP_DATA 11
+#define CMD_L2CAP_DATA_STR "l2cap_data"
 
 #define BUFSIZ 256000
 char stdinbuffer[BUFSIZ];
@@ -642,7 +662,7 @@ int main(int argc, const char* argv[])
     
     memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
     
-    // remove buffering
+    // buffering
     setvbuf(stdin, stdinbuffer, _IOFBF, BUFSIZ);
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -724,13 +744,46 @@ int main(int argc, const char* argv[])
     
     int clientL2capSock = -1;
     
+    
+    
+    int localServerSocket,localClientSocket,n;
+    localClientSocket = 0;
+    struct sockaddr_in servaddr,cliaddr;
+    int addrlen,localPort = 0;
+    char mesg[1000];
+    
+    localServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servaddr.sin_port = htons(0);
+    bind(localServerSocket,(struct sockaddr *)&servaddr,sizeof(servaddr));
+
+    getsockname(localServerSocket,(struct sockaddr*)&servaddr,&addrlen);
+    port=ntohs(sin.sin_port);
+    
+    listen(localServerSocket, 1);
+    
+    printf("localPort: %d\n", port);
+    
     while(1) {
+        uint8_t outbuf[4096];
+        bleno_header* out_header = (bleno_header*)outbuf;
+        uint8_t* out_data_buf = outbuf + sizeof(bleno_header);
+        
         FD_ZERO(&rfds);
-        FD_SET(0, &rfds);
-        FD_SET(hciSocket, &rfds);
-        FD_SET(serverL2capSock, &rfds);
+        //FD_SET(0, &rfds);
+       
+        FD_SET(localServerSocket, &rfds);
         if (clientL2capSock > 0) {
             FD_SET(clientL2capSock, &rfds);
+        }
+        // wait for client before we interact with the socket
+        if(localClientSocket > 0) {
+            FD_SET(localClientSocket, &rfds);
+            FD_SET(hciSocket, &rfds);
+            FD_SET(serverL2capSock, &rfds);
         }
         
         tv.tv_sec = 1;
@@ -763,8 +816,11 @@ int main(int argc, const char* argv[])
                     adapterState = "poweredOn";
                 }
             }
-            
-            printf("adapterState %s\n", adapterState);
+            out_header->type = CMD_ADAPTERSTATE;
+            out_header->length = strlen(adapterState);
+            memcpy(out_data_buf, adapterState, out_header->length);
+            write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+            //printf("adapterState %s\n", adapterState);
         }
         
         selectRetval = select(1024, &rfds, NULL, NULL, &tv);
@@ -803,20 +859,99 @@ int main(int argc, const char* argv[])
                 clientL2capSock = accept(serverL2capSock, (struct sockaddr *)&sockAddr, &sockAddrLen);
                 
                 baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
-                printf("l2cap_accept %s\n", batostr(&clientBdAddr));
+                char* bdaddrstr = batostr(&clientBdAddr);
+                out_header->type = CMD_ACCEPTED;
+                out_header->length = strlen(bdaddrstr);
+                memcpy(out_data_buf, bdaddrstr, out_header->length);
+                
+                write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                
+                //printf("l2cap_accept %s\n", batostr(&clientBdAddr));
                 
                 l2capConnInfoLen = sizeof(l2capConnInfo);
                 getsockopt(clientL2capSock, SOL_L2CAP, L2CAP_CONNINFO, &l2capConnInfo, &l2capConnInfoLen);
                 hciHandle = l2capConnInfo.hci_handle;
                 
-                printf("l2cap_hciHandle %d\n", hciHandle);
+                out_header->type = CMD_HCIHANDLE;
+                out_header->length = sizeof(uint32_t);
+                *out_data_buf = (uint32_t)hci_handle;
+                write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                
+                //printf("l2cap_hciHandle %d\n", hciHandle);
 
 		if (setsockopt(clientL2capSock, SOL_SOCKET, SO_SNDBUF, &L2CAP_SO_SNDBUF, sizeof(L2CAP_SO_SNDBUF))) {
 			printf("Error increasing sendbuffer\n");
 		}
             }
             
+            if (FD_ISSET(localServerSocket, &rfds)) {
+                // accept client
+                clilen=sizeof(cliaddr);
+                localClientSocket = accept(listenfd,(struct sockaddr *)&cliaddr, &clilen);
+            }
             
+            if (FD_ISSET(localClientSocket, &rfds)) {
+                uint8_t inputBuffer[4096];
+                bleno_header* header = (bleno_header*)inputBuffer;
+                
+                int len;
+                int offset = 0;
+                // read the header
+                while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
+                    offset += len;
+                }
+                if (len <= 0) {
+                    close(localClientSocket);
+                    continue;
+                }
+                int total_size = sizeof(bleno_header)+header->length;
+                while (offset != total_size && ((len = read(localClientSocket, inputBuffer+offset, total_size-offset))) > 0) {
+                    offset += len;
+                }
+                if (len <= 0) {
+                    close(localClientSocket);
+                    continue;
+                }
+                
+                uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
+                int data_len = header->length;
+                
+                switch (header->type) {
+                    case CMD_SET_ADVERTISEMENT_DATA:
+                        set_advertisement_data(hciSocket, data_buf, data_len);
+                        break;
+                    case CMD_SET_LATENCY:
+                        set_latency_opt(clientL2capSock, data_buf, data_len);
+                        //set_latency(hciSocket, dataBuf, data_len);
+                        break;
+                    case CMD_DATA:
+                        process_data(clientL2capSock, data_buf, data_len);
+                        break;
+                    case CMD_DISCONNECT:
+                        out_header->type = CMD_DISCONNECTED;
+                        out_header->length = 0;
+                        write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                        
+                        //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
+                        close(clientL2capSock);
+                        clientL2capSock = -1;
+                        break;
+                    case CMD_READ_RSSI:
+                        rssi = read_rssi(hciSocket, hciHandle);
+                        out_header->type = CMD_RSSI;
+                        out_header->length = sizeof(uint8_t);
+                        *out_data_buf = rssi;
+                        
+                        write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                        
+                        //printf("l2cap_rssi = %d\n", rssi);
+                        break;
+                    default:
+                        break;
+                }
+                
+            }
+            /*
             if (FD_ISSET(0, &rfds)) {
                 len = read(0, (char*)stdinBuf, sizeof(stdinBuf));
                 
@@ -844,6 +979,7 @@ int main(int argc, const char* argv[])
                         process_data(clientL2capSock, dataBuf, data_len);
                         break;
                     case CMD_DISCONNECT:
+                        
                         printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
                         close(clientL2capSock);
                         clientL2capSock = -1;
@@ -856,6 +992,7 @@ int main(int argc, const char* argv[])
                         break;
                 }
             }
+             */
             if (clientL2capSock > 0 && FD_ISSET(clientL2capSock, &rfds)) {
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
@@ -894,15 +1031,24 @@ int main(int argc, const char* argv[])
                             securityLevelString = "unknown";
                             break;
                     }
+                    out_header->type = CMD_SECURITY;
+                    out_header->length = strlen(securityLevelString);
+                    memcpy(out_data_buf, securityLevelString, out_header->length);
+                    write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
                     
-                    printf("l2cap_security %s\n", securityLevelString);
+                    //printf("l2cap_security %s\n", securityLevelString);
                 }
-                
+                out_header->type = CMD_L2CAP_DATA;
+                out_header->length = len;
+                write(localClientSocket,outbuf, sizeof(bleno_header));
+                write(localClientSocket,l2capSockBuf, len);
+                /*
                 printf("l2cap_data ");
                 for(i = 0; i < len; i++) {
                     printf("%02x", ((int)l2capSockBuf[i]) & 0xff);
                 }
                 printf("\n");
+                */
             }
 
             if(FD_ISSET(hciSocket, &rfds)) {
