@@ -356,6 +356,12 @@ int le_slave_conn_update2(int dd, uint16_t handle, uint16_t min, uint16_t max,
     
 }
 
+int hci_reset(int ctl, int hdev)
+{
+    if (ioctl(ctl, HCIDEVRESET, hdev) < 0 ){
+      fprintf(stderr, "Reset failed for device hci%d: %s (%d)\n", hdev, strerror(errno), errno);
+    }
+}
 
 int hci_le_set_advertising_data(int dd, uint8_t* data, uint8_t length, int to)
 {
@@ -650,6 +656,8 @@ int main(int argc, const char* argv[])
         printf("adapterState unsupported\n");
         return -1;
     }
+    hci_reset(hciSocket, hciDeviceId);
+    
     int opt;
     opt = 1;
     if(setsockopt(hciSocket, SOL_HCI, HCI_DATA_DIR, &opt, sizeof(opt)) < 0) {
