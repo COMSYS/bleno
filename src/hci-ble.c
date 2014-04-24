@@ -778,9 +778,10 @@ int main(int argc, const char* argv[])
         
         selectRetval = select(1024, &rfds, NULL, NULL, &tv);
         
-        if (-1 == selectRetval) {
+        if (selectRetval == -1) {
             if (SIGINT == lastSignal || SIGKILL == lastSignal) {
                 // done
+                printf("Got sig int or kill");
                 break;
             } else if (SIGHUP == lastSignal) {
                 // stop advertising
@@ -859,7 +860,7 @@ int main(int argc, const char* argv[])
                 printf("Got header\n");
                 if (len <= 0) {
                     close(localClientSocket);
-                    continue;
+                    break;
                 }
                 int total_size = sizeof(bleno_header)+ntohl(header->length);
                 while (offset != total_size && ((len = read(localClientSocket, inputBuffer+offset, total_size-offset))) > 0) {
@@ -867,7 +868,7 @@ int main(int argc, const char* argv[])
                 }
                 if (len <= 0) {
                     close(localClientSocket);
-                    continue;
+                    break;
                 }
                 
                 uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
@@ -917,48 +918,7 @@ int main(int argc, const char* argv[])
                 }
                 
             }
-            /*
-            if (FD_ISSET(0, &rfds)) {
-                len = read(0, (char*)stdinBuf, sizeof(stdinBuf));
-                
-                if (len <= 0) {
-                    printf("STDINBUF closed\n");
-                    break;
-                }
-                uint8_t* dataBuf;
-                int data_len;
-                int skip_len = 0;
-                int cmd = -1;
-                uint8_t rssi;
-                cmd = get_cmd(stdinBuf, &skip_len);
-                dataBuf = stdinBuf+skip_len;
-                data_len = len - skip_len;
-                switch (cmd) {
-                    case CMD_SET_ADVERTISEMENT_DATA:
-                        set_advertisement_data(hciSocket, dataBuf, data_len);
-                        break;
-                    case CMD_SET_LATENCY:
-                        set_latency_opt(clientL2capSock, dataBuf, data_len);
-                        //set_latency(hciSocket, dataBuf, data_len);
-                        break;
-                    case CMD_DATA:
-                        process_data(clientL2capSock, dataBuf, data_len);
-                        break;
-                    case CMD_DISCONNECT:
-                        
-                        printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
-                        close(clientL2capSock);
-                        clientL2capSock = -1;
-                        break;
-                    case CMD_READ_RSSI:
-                        rssi = read_rssi(hciSocket, hciHandle);
-                        printf("l2cap_rssi = %d\n", rssi);
-                        break;
-                    default:
-                        break;
-                }
-            }
-             */
+
             if (clientL2capSock > 0 && FD_ISSET(clientL2capSock, &rfds)) {
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
@@ -1034,6 +994,8 @@ int main(int argc, const char* argv[])
     }
     
     printf("close\n");
+    close(localClientSocket);
+    close(localServerSocket);
     close(serverL2capSock);
     // stop advertising
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
