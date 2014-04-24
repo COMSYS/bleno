@@ -838,7 +838,9 @@ int main(int argc, const char* argv[])
             if (FD_ISSET(localServerSocket, &rfds)) {
                 // accept client
                 clilen=sizeof(cliaddr);
+                printf("Before accept\n");
                 localClientSocket = accept(localServerSocket,(struct sockaddr *)&cliaddr, &clilen);
+                printf("Accepted connection\n");
             }
             
             if (FD_ISSET(localClientSocket, &rfds)) {
@@ -848,6 +850,7 @@ int main(int argc, const char* argv[])
                 int len;
                 int offset = 0;
                 // read the header
+                printf("Reading data from client\n");
                 while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
                     offset += len;
                 }
@@ -871,16 +874,20 @@ int main(int argc, const char* argv[])
                 uint8_t rssi;
                 switch (header->type) {
                     case CMD_SET_ADVERTISEMENT_DATA:
+                        printf("Got advertisement data\n");
                         set_advertisement_data(hciSocket, data_buf, data_len);
                         break;
                     case CMD_SET_LATENCY:
+                        printf("Got latency data\n");
                         set_latency_opt(clientL2capSock, data_buf, data_len);
                         //set_latency(hciSocket, dataBuf, data_len);
                         break;
                     case CMD_DATA:
+                        printf("Got data\n");
                         process_data(clientL2capSock, data_buf, data_len);
                         break;
                     case CMD_DISCONNECT:
+                        printf("Got disconnect data\n");
                         strClientBdAddr = batostr(&clientBdAddr);
                         out_header->type = CMD_DISCONNECTED;
                         out_header->length = htonl(strlen(strClientBdAddr));
@@ -892,6 +899,7 @@ int main(int argc, const char* argv[])
                         clientL2capSock = -1;
                         break;
                     case CMD_READ_RSSI:
+                        printf("Got read rssi data\n");
                         rssi = read_rssi(hciSocket, hciHandle);
                         out_header->type = CMD_RSSI;
                         out_header->length = htonl(sizeof(uint8_t));
