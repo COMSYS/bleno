@@ -511,7 +511,7 @@ void set_latency_opt(int l2capSock, uint8_t* buf, int len)
     uint16_t to_multiplier = ntohs(*(bufbufbuf+4));
     printf("Setting latency to %d (*1.25ms) %d (*1.25ms) %d %d \n", min, max, latency, to_multiplier);
     
-    req.min_interval = hmin;
+    req.min_interval = min;
 	req.max_interval = max;
 	req.slave_latency = latency;
 	req.timeout_multiplier = to_multiplier;
