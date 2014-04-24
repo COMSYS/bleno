@@ -738,6 +738,7 @@ int main(int argc, const char* argv[])
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
+        if (localClientSocket > 0) {
         // get HCI dev info for adapter state
         ioctl(hciSocket, HCIGETDEVINFO, (void *)&hciDevInfo);
         currentAdapterState = hci_test_bit(HCI_UP, &hciDevInfo.flags);
@@ -770,6 +771,7 @@ int main(int argc, const char* argv[])
             memcpy(out_data_buf, adapterState, ntohl(out_header->length));
             write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
             //printf("adapterState %s\n", adapterState);
+        }
         }
         
         selectRetval = select(1024, &rfds, NULL, NULL, &tv);
