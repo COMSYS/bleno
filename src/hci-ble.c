@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -48,7 +50,7 @@ typedef struct bleno_header_ {
 #define CMD_DISCONNECTED 6
 #define CMD_DISCONNECTED_STR "l2cap_disconnect"
 #define CMD_ACCEPTED 7
-#deifne CMD_ACCEPTED_STR "l2cap_accept"
+#define CMD_ACCEPTED_STR "l2cap_accept"
 #define CMD_HCIHANDLE 8
 #define CMD_HCIHANDLE_STR "l2cap_hciHandle"
 #define CMD_ADAPTERSTATE 9
@@ -529,7 +531,7 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len) {
     uint8_t scanDataLen = *(buf+1);
     buf += 2;
     memcpy(advertisementDataBuf, buf, advertisementDataLen);
-    memcpy(scanDataBuf, buf+len_advertisement_data, scanDataLen);
+    memcpy(scanDataBuf, buf+advertisementDataLen, scanDataLen);
 
     
     // stop advertising
@@ -693,10 +695,10 @@ int main(int argc, const char* argv[])
     
     
     
-    int localServerSocket,localClientSocket,n;
+    int localServerSocket,localClientSocket,n,port;
     localClientSocket = 0;
     struct sockaddr_in servaddr,cliaddr;
-    int addrlen,localPort = 0;
+    socklen_t addrlen,clilen;
     char mesg[1000];
     
     localServerSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -707,8 +709,8 @@ int main(int argc, const char* argv[])
     servaddr.sin_port = htons(0);
     bind(localServerSocket,(struct sockaddr *)&servaddr,sizeof(servaddr));
 
-    getsockname(localServerSocket,(struct sockaddr*)&servaddr,&addrlen);
-    port=ntohs(sin.sin_port);
+    getsockname(localServerSocket,(struct sockaddr*)&servaddr, &addrlen);
+    port=ntohs(servaddr.sin_port);
     
     listen(localServerSocket, 1);
     
@@ -821,7 +823,7 @@ int main(int argc, const char* argv[])
                 
                 out_header->type = CMD_HCIHANDLE;
                 out_header->length = htonl(sizeof(uint32_t));
-                *out_data_buf = htonl((uint32_t)hci_handle);
+                *out_data_buf = htonl((uint32_t)hciHandle);
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
@@ -834,7 +836,7 @@ int main(int argc, const char* argv[])
             if (FD_ISSET(localServerSocket, &rfds)) {
                 // accept client
                 clilen=sizeof(cliaddr);
-                localClientSocket = accept(listenfd,(struct sockaddr *)&cliaddr, &clilen);
+                localClientSocket = accept(localServerSocket,(struct sockaddr *)&cliaddr, &clilen);
             }
             
             if (FD_ISSET(localClientSocket, &rfds)) {
@@ -875,7 +877,7 @@ int main(int argc, const char* argv[])
                         process_data(clientL2capSock, data_buf, data_len);
                         break;
                     case CMD_DISCONNECT:
-                        strClientBdAddr = batostr(&clientBdAddr)
+                        strClientBdAddr = batostr(&clientBdAddr);
                         out_header->type = CMD_DISCONNECTED;
                         out_header->length = htonl(strlen(strClientBdAddr));
                         memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
