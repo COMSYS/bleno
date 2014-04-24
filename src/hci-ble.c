@@ -740,7 +740,6 @@ int main(int argc, const char* argv[])
         uint8_t outbuf[4096];
         bleno_header* out_header = (bleno_header*)outbuf;
         uint8_t* out_data_buf = outbuf + sizeof(bleno_header);
-        int max_sock;
         FD_ZERO(&rfds);
         //FD_SET(0, &rfds);
         
