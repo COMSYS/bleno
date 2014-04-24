@@ -865,6 +865,8 @@ int main(int argc, const char* argv[])
                 uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
                 int data_len = header->length;
                 char* strClientBdAddr;
+                
+                uint8_t rssi;
                 switch (header->type) {
                     case CMD_SET_ADVERTISEMENT_DATA:
                         set_advertisement_data(hciSocket, data_buf, data_len);
