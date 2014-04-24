@@ -468,40 +468,10 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     tim.tv_sec = 0;
     tim.tv_nsec = 100000000L;
     
-    while (i < len) {
-    
-        if (get_cmd(buf, &skip) != -1) {
-            i += skip;
-        }
-        unsigned int data = 0;
-        sscanf((char*)&buf[i], "%02x", &data);
-        l2capSockBuf[0] = data;
-        sscanf((char*)&buf[i+2], "%02x", &data);
-        l2capSockBuf[1] = data;
-        sscanf((char*)&buf[i+4], "%02x", &data);
-        l2capSockBuf[2] = data;
-        sscanf((char*)&buf[i+6], "%02x", &data);
-        l2capSockBuf[3] = data;
-        i += 8;
-        
-        data_len = btohs(*(uint32_t*)l2capSockBuf);
-        j = 0;
-        while(j < i+data_len) {
-            unsigned int data = 0;
-            sscanf((char*)&buf[i+j], "%02x", &data);
-            l2capSockBuf[j / 2] = data;
-            j += 2;
-        }
-        // skip packet + \n
-        i += j+1;
-    
-        len_written = write(clientSocket, l2capSockBuf, (data_len) / 2);
-        
-        //nanosleep(&tim, NULL);
+    len_written = write(clientSocket, buf, len);
  
-        if (len_written == -1) {
-            printf("Error writing to client %d: %s\n", errno, strerror(errno));
-        }
+    if (len_written == -1) {
+        printf("Error writing to client %d: %s\n", errno, strerror(errno));
     }
 }
 
@@ -530,23 +500,16 @@ void set_latency(int hciSocket, uint8_t* buf, int len)
 void set_latency_opt(int l2capSock, uint8_t* buf, int len)
 {
     conn_param_update_req req;
-    int i = 0;
-    uint8_t outbuf[256];
-    while(buf[i] != '\n') {
-        unsigned int data = 0;
-        sscanf((char*)&buf[i], "%02x", &data);
-        outbuf[i / 2] = data;
-        i += 2;
-    }
-    uint16_t* bufbufbuf = (uint16_t*)outbuf;
-    uint16_t handle = btohs(*bufbufbuf);
-    uint16_t min = btohs(*(bufbufbuf+1));
-    uint16_t max = btohs(*(bufbufbuf+2));
-    uint16_t latency = btohs(*(bufbufbuf+3));
-    uint16_t to_multiplier = btohs(*(bufbufbuf+4));
+
+    uint16_t* bufbufbuf = (uint16_t*)buf;
+    uint16_t handle = ntohs(*bufbufbuf);
+    uint16_t min = ntohs(*(bufbufbuf+1));
+    uint16_t max = ntohs(*(bufbufbuf+2));
+    uint16_t latency = ntohs(*(bufbufbuf+3));
+    uint16_t to_multiplier = ntohs(*(bufbufbuf+4));
     printf("Setting latency to %d (*1.25ms) %d (*1.25ms) %d %d \n", min, max, latency, to_multiplier);
     
-    req.min_interval = min;
+    req.min_interval = hmin;
 	req.max_interval = max;
 	req.slave_latency = latency;
 	req.timeout_multiplier = to_multiplier;
@@ -559,31 +522,15 @@ void set_latency_opt(int l2capSock, uint8_t* buf, int len)
 
 
 void set_advertisement_data(int hciSocket, uint8_t* buf, int len) {
-    int i;
     uint8_t advertisementDataBuf[256];
-    int advertisementDataLen;
     uint8_t scanDataBuf[256];
-    int scanDataLen;
     
-    i = 0;
-    advertisementDataLen = 0;
-    while(i < len && buf[i] != ' ') {
-        unsigned int data = 0;
-        sscanf((char*)&buf[i], "%02x", &data);
-        advertisementDataBuf[advertisementDataLen] = data;
-        advertisementDataLen++;
-        i += 2;
-    }
-    
-    i++;
-    scanDataLen = 0;
-    while(i < len && buf[i] != '\n') {
-        unsigned int data = 0;
-        sscanf((char*)&buf[i], "%02x", &data);
-        scanDataBuf[scanDataLen] = data;
-        scanDataLen++;
-        i += 2;
-    }
+    uint8_t advertisementDataLen = *buf;
+    uint8_t scanDataLen = *(buf+1);
+    buf += 2;
+    memcpy(advertisementDataBuf, buf, advertisementDataLen);
+    memcpy(scanDataBuf, buf+len_advertisement_data, scanDataLen);
+
     
     // stop advertising
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
@@ -765,7 +712,7 @@ int main(int argc, const char* argv[])
     
     listen(localServerSocket, 1);
     
-    printf("localPort: %d\n", port);
+    printf("localPort %d\n", port);
     
     while(1) {
         uint8_t outbuf[4096];
@@ -817,9 +764,9 @@ int main(int argc, const char* argv[])
                 }
             }
             out_header->type = CMD_ADAPTERSTATE;
-            out_header->length = strlen(adapterState);
-            memcpy(out_data_buf, adapterState, out_header->length);
-            write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+            out_header->length = htonl(strlen(adapterState));
+            memcpy(out_data_buf, adapterState, ntohl(out_header->length));
+            write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
             //printf("adapterState %s\n", adapterState);
         }
         
@@ -861,10 +808,10 @@ int main(int argc, const char* argv[])
                 baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
                 char* bdaddrstr = batostr(&clientBdAddr);
                 out_header->type = CMD_ACCEPTED;
-                out_header->length = strlen(bdaddrstr);
-                memcpy(out_data_buf, bdaddrstr, out_header->length);
+                out_header->length = htonl(strlen(bdaddrstr));
+                memcpy(out_data_buf, bdaddrstr, ntohl(out_header->length));
                 
-                write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_accept %s\n", batostr(&clientBdAddr));
                 
@@ -873,9 +820,9 @@ int main(int argc, const char* argv[])
                 hciHandle = l2capConnInfo.hci_handle;
                 
                 out_header->type = CMD_HCIHANDLE;
-                out_header->length = sizeof(uint32_t);
-                *out_data_buf = (uint32_t)hci_handle;
-                write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                out_header->length = htonl(sizeof(uint32_t));
+                *out_data_buf = htonl((uint32_t)hci_handle);
+                write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
 
@@ -915,7 +862,7 @@ int main(int argc, const char* argv[])
                 
                 uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
                 int data_len = header->length;
-                
+                char* strClientBdAddr;
                 switch (header->type) {
                     case CMD_SET_ADVERTISEMENT_DATA:
                         set_advertisement_data(hciSocket, data_buf, data_len);
@@ -928,9 +875,11 @@ int main(int argc, const char* argv[])
                         process_data(clientL2capSock, data_buf, data_len);
                         break;
                     case CMD_DISCONNECT:
+                        strClientBdAddr = batostr(&clientBdAddr)
                         out_header->type = CMD_DISCONNECTED;
-                        out_header->length = 0;
-                        write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                        out_header->length = htonl(strlen(strClientBdAddr));
+                        memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
+                        write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                         
                         //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
                         close(clientL2capSock);
@@ -939,10 +888,10 @@ int main(int argc, const char* argv[])
                     case CMD_READ_RSSI:
                         rssi = read_rssi(hciSocket, hciHandle);
                         out_header->type = CMD_RSSI;
-                        out_header->length = sizeof(uint8_t);
+                        out_header->length = htonl(sizeof(uint8_t));
                         *out_data_buf = rssi;
                         
-                        write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                        write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                         
                         //printf("l2cap_rssi = %d\n", rssi);
                         break;
@@ -1032,14 +981,14 @@ int main(int argc, const char* argv[])
                             break;
                     }
                     out_header->type = CMD_SECURITY;
-                    out_header->length = strlen(securityLevelString);
-                    memcpy(out_data_buf, securityLevelString, out_header->length);
-                    write(localClientSocket,outbuf, sizeof(bleno_header)+out_header->length);
+                    out_header->length = htonl(strlen(securityLevelString));
+                    memcpy(out_data_buf, securityLevelString, ntohl(out_header->length));
+                    write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                     
                     //printf("l2cap_security %s\n", securityLevelString);
                 }
                 out_header->type = CMD_L2CAP_DATA;
-                out_header->length = len;
+                out_header->length = htonl(len);
                 write(localClientSocket,outbuf, sizeof(bleno_header));
                 write(localClientSocket,l2capSockBuf, len);
                 /*
