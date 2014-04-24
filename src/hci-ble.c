@@ -849,9 +849,6 @@ int main(int argc, const char* argv[])
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
 
-		if (setsockopt(clientL2capSock, SOL_SOCKET, SO_SNDBUF, &L2CAP_SO_SNDBUF, sizeof(L2CAP_SO_SNDBUF))) {
-			printf("Error increasing sendbuffer\n");
-		}
             }
             
             if (FD_ISSET(localServerSocket, &rfds)) {
@@ -938,7 +935,6 @@ int main(int argc, const char* argv[])
                     printf("L2CAP Client sock collapsed\n");
                     close(clientL2capSock);
                     clientL2capSock = 0;
-                    continue;
                 }
                 
                 
@@ -976,10 +972,12 @@ int main(int argc, const char* argv[])
                     
                     //printf("l2cap_security %s\n", securityLevelString);
                 }
-                out_header->type = CMD_L2CAP_DATA;
-                out_header->length = htonl(len);
-                write(localClientSocket,outbuf, sizeof(bleno_header));
-                write(localClientSocket,l2capSockBuf, len);
+                if(len) {
+                    out_header->type = CMD_L2CAP_DATA;
+                    out_header->length = htonl(len);
+                	write(localClientSocket,outbuf, sizeof(bleno_header));
+                	write(localClientSocket,l2capSockBuf, len);
+                }
                 /*
                 printf("l2cap_data ");
                 for(i = 0; i < len; i++) {
