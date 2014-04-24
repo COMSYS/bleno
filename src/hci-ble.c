@@ -933,8 +933,17 @@ int main(int argc, const char* argv[])
                 
                 if (len <= 0) {
                     printf("L2CAP Client sock collapsed\n");
+                    char* strClientBdAddr;
+                    
+                    strClientBdAddr = batostr(&clientBdAddr);
+                    out_header->type = CMD_DISCONNECTED;
+                    out_header->length = htonl(strlen(strClientBdAddr));
+                    memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
+                    write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                    
+                    //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
                     close(clientL2capSock);
-                    clientL2capSock = 0;
+                    clientL2capSock = -1;
                 }else {
                     btSecurityLen = sizeof(btSecurity);
                     memset(&btSecurity, 0, btSecurityLen);
