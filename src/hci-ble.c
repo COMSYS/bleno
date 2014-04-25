@@ -845,7 +845,7 @@ int main(int argc, const char* argv[])
                 
                 out_header->type = CMD_HCIHANDLE;
                 out_header->length = htonl(sizeof(uint16_t));
-                *out_data_buf = htonl((uint16_t)hciHandle);
+                *out_data_buf = htons((uint16_t)hciHandle);
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
                 //printf("l2cap_hciHandle %d\n", hciHandle);
