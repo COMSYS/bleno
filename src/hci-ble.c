@@ -67,6 +67,11 @@ char stdinbuffer[BUFSIZ];
 
 static const int L2CAP_SO_SNDBUF = 400 * 1024;
 
+char advertisementDataBuf[256];
+int advertisementDataLen = 0;
+char scanDataBuf[256];
+int scanDataLen = 0;
+
 int lastSignal = 0;
 
 static void signalHandler(int signal) {
@@ -542,11 +547,9 @@ void set_latency_opt(int l2capSock, uint8_t* buf, int len)
 
 
 void set_advertisement_data(int hciSocket, uint8_t* buf, int len) {
-    uint8_t advertisementDataBuf[256];
-    uint8_t scanDataBuf[256];
     
-    uint8_t advertisementDataLen = *buf;
-    uint8_t scanDataLen = *(buf+1);
+    advertisementDataLen = *buf;
+    scanDataLen = *(buf+1);
     buf += 2;
     memcpy(advertisementDataBuf, buf, advertisementDataLen);
     memcpy(scanDataBuf, buf+advertisementDataLen, scanDataLen);
@@ -620,10 +623,6 @@ int main(int argc, const char* argv[])
     
     uint8_t stdinBuf[256 * 2 + 1 + 10];
     uint8_t hciBuf[1024];
-    char advertisementDataBuf[256];
-    int advertisementDataLen = 0;
-    char scanDataBuf[256];
-    int scanDataLen = 0;
     int len;
     int i;
     
@@ -805,6 +804,8 @@ int main(int argc, const char* argv[])
                 hci_le_set_advertise_enable(hciSocket, 0, 1000);
                 
             } else if (SIGUSR1 == lastSignal) {
+                
+                printf("Reanabling advertisements\n");
                 // stop advertising
                 hci_le_set_advertise_enable(hciSocket, 0, 1000);
                 
