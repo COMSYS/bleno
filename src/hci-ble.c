@@ -479,7 +479,7 @@ int8_t read_rssi(int hciSocket, int hciHandle) {
 }
 
 
-void process_data(int clientSocket, uint8_t* buf, int len)
+int process_data(int clientSocket, uint8_t* buf, int len)
 {
     int i = 0;
     int j = 0;
@@ -493,11 +493,14 @@ void process_data(int clientSocket, uint8_t* buf, int len)
     
     //printf("Attempting to write %d bytes to l2capsocket", len);
     
-    len_written = write(clientSocket, buf, len);
+    
+    while(len_written != len && (len_written = write(clientSocket, buf+len_written, len-len_written)) > 0)
     
     if (len_written == -1) {
         printf("Error writing to client %d: %s\n", errno, strerror(errno));
+        return -1;
     }
+    return 0;
 }
 
 
@@ -546,7 +549,8 @@ void set_latency_opt(int l2capSock, uint8_t* buf, int len)
 
 
 
-void set_advertisement_data(int hciSocket, uint8_t* buf, int len) {
+void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
+{
     
     advertisementDataLen = *buf;
     scanDataLen = *(buf+1);
@@ -683,7 +687,7 @@ int main(int argc, const char* argv[])
     socklen_t l2capConnInfoLen;
     uint16_t hciHandle;
     bdaddr_t daddr;
-    char l2capSockBuf[256];
+    char l2capSockBuf[1024];
     struct bt_security btSecurity;
     socklen_t btSecurityLen;
     uint8_t securityLevel = 0;
@@ -899,7 +903,19 @@ int main(int argc, const char* argv[])
                         break;
                     case CMD_DATA:
                         printf("Got data\n");
-                        process_data(clientL2capSock, data_buf, data_len);
+                        if (process_data(clientL2capSock, data_buf, data_len) == -1) {
+                            char* strClientBdAddr;
+                            
+                            strClientBdAddr = batostr(&clientBdAddr);
+                            out_header->type = CMD_DISCONNECTED;
+                            out_header->length = htonl(strlen(strClientBdAddr));
+                            memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
+                            write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                            
+                            //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
+                            close(clientL2capSock);
+                            clientL2capSock = -1;
+                        }
                         break;
                     case CMD_DISCONNECT:
                         printf("Got disconnect data\n");
