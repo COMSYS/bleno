@@ -874,8 +874,12 @@ int main(int argc, const char* argv[])
             } else if (SIGUSR1 == lastSignal) {
                 
                 printf("Reanabling advertisements\n");
-                /*
                
+                usleep(50);
+
+                le_set_advertising_enable(hciSocket, 0, 1000);
+                
+                
                 le_set_advertising_parameters_cp adv_params;
                 memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
                 adv_params.min_interval = 0x20;
@@ -898,7 +902,7 @@ int main(int argc, const char* argv[])
                 
                 // set advertisement data
                 hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
-                 */
+                
             }
         } else if (selectRetval) {
             if(FD_ISSET(serverL2capSock, &rfds)) {
