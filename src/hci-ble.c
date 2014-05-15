@@ -335,10 +335,28 @@ int main()
     char* hciDeviceIdOverride;
     int hciDeviceId, hciSocket, previousAdapterState, currentAdapterState;
     struct hci_dev_info hciDevInfo;
-    
-    fd_set rfds;
+    // setup l2cap server socket stuff
+    int serverL2capSock;
+    struct sockaddr_l2 sockAddr;
+    socklen_t sockAddrLen;
+    bdaddr_t clientBdAddr;
+    struct l2cap_conninfo l2capConnInfo;
+    socklen_t l2capConnInfoLen;
+    uint16_t hciHandle;
+    bdaddr_t daddr;
+    struct bt_security btSecurity;
+    socklen_t btSecurityLen;
+    uint8_t securityLevel = 0;
     
     uint8_t hciBuf[1024];
+    int clientL2capSock = -1;
+    
+    
+    
+    int localServerSocket,localClientSocket,port;
+    localClientSocket = -1;
+    struct sockaddr_in servaddr,cliaddr;
+    socklen_t addrlen,clilen;
     
     // initialize variables
     previousAdapterState = -1;
@@ -383,21 +401,6 @@ int main()
     // reset hci device
     hci_reset(hciSocket, hciDeviceId);
     
-    // setup l2cap channel
-    int serverL2capSock;
-    struct sockaddr_l2 sockAddr;
-    socklen_t sockAddrLen;
-    int result;
-    bdaddr_t clientBdAddr;
-    struct l2cap_conninfo l2capConnInfo;
-    socklen_t l2capConnInfoLen;
-    uint16_t hciHandle;
-    bdaddr_t daddr;
-    char l2capSockBuf[1024];
-    struct bt_security btSecurity;
-    socklen_t btSecurityLen;
-    uint8_t securityLevel = 0;
-    
     // create socket
     serverL2capSock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
     
@@ -411,33 +414,30 @@ int main()
     sockAddr.l2_bdaddr = daddr;
     sockAddr.l2_cid = htobs(L2CAP_CID_ATT);
     
-    result = bind(serverL2capSock, (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+    if(bind(serverL2capSock, (struct sockaddr*)&sockAddr, sizeof(sockAddr)) < 0) {
+        printf("l2cap_bind %s\n", strerror(errno));
+    }else {
+        printf("l2cap_bind success\n");
+    }
     
-    printf("l2cap_bind %s\n", (result == -1) ? strerror(errno) : "success");
-    
-    result = listen(serverL2capSock, 2);
-    
-    printf("l2cap_listen %s\n", (result == -1) ? strerror(errno) : "success");
-    
-    
-    int clientL2capSock = -1;
-    
-    
-    
-    int localServerSocket,localClientSocket,port;
-    localClientSocket = -1;
-    struct sockaddr_in servaddr,cliaddr;
-    socklen_t addrlen,clilen;
-    
+    if(listen(serverL2capSock, 2) < 0) {
+        printf("l2cap_listen %s\n", strerror(errno));
+    }else {
+        printf("l2cap_listen success\n");
+    }
+
     localServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
     servaddr.sin_port = htons(0);
+    
     bind(localServerSocket,(struct sockaddr *)&servaddr,sizeof(servaddr));
+    
     addrlen = sizeof(struct sockaddr_in);
     getsockname(localServerSocket,(struct sockaddr*)&servaddr, &addrlen);
+    
     port=ntohs(servaddr.sin_port);
     
     listen(localServerSocket, 1);
@@ -450,11 +450,10 @@ int main()
         bleno_header* out_header;
         struct timeval tv;
         int selectRetval, max_sock;
-
+        fd_set rfds;
+        
         out_header = (bleno_header*)outbuf;
         out_data_buf= outbuf + sizeof(bleno_header);
-
-
 
         FD_ZERO(&rfds);
         //FD_SET(0, &rfds);
@@ -676,6 +675,7 @@ int main()
             
             if (clientL2capSock > 0 && FD_ISSET(clientL2capSock, &rfds)) {
                 int len;
+                char l2capSockBuf[1024];
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
                 if (len <= 0) {
