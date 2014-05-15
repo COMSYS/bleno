@@ -875,7 +875,7 @@ int main(int argc, const char* argv[])
                 
                 printf("Reanabling advertisements\n");
                
-                usleep(2000);
+                sleep(1);
 
                 le_set_advertising_enable(hciSocket, 0, 1000);
                 
