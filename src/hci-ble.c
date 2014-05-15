@@ -433,6 +433,34 @@ int hci_le_set_advertising_settings(int dd, uint8_t* data, int to)
     return 0;
 }
 
+int le_set_advertising_enable(int dd, uint8_t enable, uint8_t length, int to)
+{
+    struct hci_request rq;
+    le_set_advertise_enable_cp enable_cp;
+    uint8_t status;
+    
+    memset(&enable_cp, 0, sizeof(enable_cp));
+    enable_cp.enable = enable;
+    
+    memset(&rq, 0, sizeof(rq));
+    rq.ogf = OGF_LE_CTL;
+    rq.ocf = OCF_LE_SET_ADVERTISE_ENABLE;
+    rq.cparam = &enable_cp;
+    rq.clen = LE_SET_ADVERTISE_ENABLE_CP_SIZE;
+    rq.rparam = &status;
+    rq.rlen = 1;
+    
+    if (hci_send_req(dd, &rq, to) < 0)
+    return -1;
+    
+    if (status) {
+        errno = EIO;
+        return -1;
+    }
+    
+    return 0;
+}
+
 int hci_le_set_scan_response_data(int dd, uint8_t* data, uint8_t length, int to)
 {
     struct hci_request rq;
@@ -586,7 +614,7 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     
     
     // stop advertising
-    hci_le_set_advertise_enable(hciSocket, 0, 1000);
+    le_set_advertising_enable(hciSocket, 0, 1000);
     
     le_set_advertising_parameters_cp adv_params;
     memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
@@ -602,7 +630,7 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
     
     // start advertising
-    hci_le_set_advertise_enable(hciSocket, 1, 1000);
+    le_set_advertising_enable(hciSocket, 1, 1000);
     
     // set scan data
     hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
@@ -804,9 +832,9 @@ int main(int argc, const char* argv[])
                 if (!currentAdapterState) {
                     adapterState = "poweredOff";
                 } else {
-                    hci_le_set_advertise_enable(hciSocket, 0, 1000);
+                    le_set_advertising_enable(hciSocket, 0, 1000);
                     
-                    hci_le_set_advertise_enable(hciSocket, 1, 1000);
+                    le_set_advertising_enable(hciSocket, 1, 1000);
                     
                     if (hci_le_set_advertise_enable(hciSocket, 0, 1000) == -1) {
                         if (EPERM == errno) {
@@ -838,13 +866,20 @@ int main(int argc, const char* argv[])
                 break;
             } else if (SIGHUP == lastSignal) {
                 // stop advertising
-                hci_le_set_advertise_enable(hciSocket, 0, 1000);
+                le_set_advertising_enable(hciSocket, 0, 1000);
+                
+                le_set_advertising_parameters_cp adv_params;
+                memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
+                adv_params.min_interval = 0x20;
+                adv_params.max_interval = 0x20;
+                adv_params.chan_map = 0x07;
+                hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
                 
             } else if (SIGUSR1 == lastSignal) {
                 
                 printf("Reanabling advertisements\n");
                 // stop advertising
-                hci_le_set_advertise_enable(hciSocket, 0, 1000);
+                le_set_advertising_enable(hciSocket, 0, 1000);
                 
                 le_set_advertising_parameters_cp adv_params;
                 memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
@@ -861,7 +896,7 @@ int main(int argc, const char* argv[])
                 hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
                 
                 // start advertising
-                hci_le_set_advertise_enable(hciSocket, 1, 1000);
+                le_set_advertising_enable(hciSocket, 1, 1000);
                 
                 // set scan data
                 hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
