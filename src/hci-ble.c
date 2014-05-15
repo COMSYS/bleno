@@ -407,6 +407,36 @@ int hci_le_set_advertising_data(int dd, uint8_t* data, uint8_t length, int to)
     return 0;
 }
 
+
+int hci_le_set_advertising_settings(int dd, uint8_t* data, uint8_t length, int to)
+{
+    struct hci_request rq;
+    le_set_advertising_data_cp data_cp;
+    uint8_t status;
+    
+    memset(&data_cp, 0, sizeof(data_cp));
+    data_cp.length = length;
+    memcpy(&data_cp.data, data, sizeof(data_cp.data));
+    
+    memset(&rq, 0, sizeof(rq));
+    rq.ogf = OGF_LE_CTL;
+    rq.ocf = OCF_LE_SET_ADVERTISING_PARAMETERS;
+    rq.cparam = &data_cp;
+    rq.clen = LE_SET_ADVERTISING_PARAMETERS_CP_SIZE;
+    rq.rparam = &status;
+    rq.rlen = 1;
+    
+    if (hci_send_req(dd, &rq, to) < 0)
+    return -1;
+    
+    if (status) {
+        errno = EIO;
+        return -1;
+    }
+    
+    return 0;
+}
+
 int hci_le_set_scan_response_data(int dd, uint8_t* data, uint8_t length, int to)
 {
     struct hci_request rq;
@@ -562,6 +592,17 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     // stop advertising
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
     
+    le_set_advertising_parameters_cp adv_params;
+    adv_params.min_interval = 0x20;
+    adv_params.max_interval = 0x20;
+    adv_params.advtype = 0x00;
+    adv_params.own_bdaddr_type = 0x00;
+    adv_params.direct_bdaddr_type = 0x00;
+    adv_params.direct_bdaddr = BDADDR_ANY;
+    adv_params.chan_map = 0x07;
+    adv_params.filter = 0x00;
+    
+    hci_le_set_advertising_settings(hciSocket, (uint8_t*)adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
     // set scan data
     hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
     
@@ -812,6 +853,18 @@ int main(int argc, const char* argv[])
                 printf("Reanabling advertisements\n");
                 // stop advertising
                 hci_le_set_advertise_enable(hciSocket, 0, 1000);
+                
+                le_set_advertising_parameters_cp adv_params;
+                adv_params.min_interval = 0x20;
+                adv_params.max_interval = 0x20;
+                adv_params.advtype = 0x00;
+                adv_params.own_bdaddr_type = 0x00;
+                adv_params.direct_bdaddr_type = 0x00;
+                adv_params.direct_bdaddr = BDADDR_ANY;
+                adv_params.chan_map = 0x07;
+                adv_params.filter = 0x00;
+                
+                hci_le_set_advertising_settings(hciSocket, (uint8_t*)adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
                 
                 // set scan data
                 hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
