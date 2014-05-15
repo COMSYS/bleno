@@ -360,7 +360,6 @@ int main()
     
     // initialize variables
     previousAdapterState = -1;
-    adapterState = NULL;
     hciDeviceIdOverride = NULL;
     hciDeviceId = 0;
     
