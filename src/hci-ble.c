@@ -590,8 +590,8 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     
     le_set_advertising_parameters_cp adv_params;
     memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
-    adv_params.min_interval = 0x2000;
-    adv_params.max_interval = 0x2000;
+    adv_params.min_interval = 0x20;
+    adv_params.max_interval = 0x20;
     adv_params.chan_map = 0x07;
     
     hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
@@ -848,8 +848,8 @@ int main(int argc, const char* argv[])
                 
                 le_set_advertising_parameters_cp adv_params;
                 memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
-                adv_params.min_interval = 0x2000;
-                adv_params.max_interval = 0x2000;
+                adv_params.min_interval = 0x20;
+                adv_params.max_interval = 0x20;
                 adv_params.chan_map = 0x07;
                 
                 hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
