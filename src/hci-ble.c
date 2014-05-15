@@ -433,7 +433,7 @@ int hci_le_set_advertising_settings(int dd, uint8_t* data, int to)
     return 0;
 }
 
-int le_set_advertising_enable(int dd, uint8_t enable, uint8_t length, int to)
+int le_set_advertising_enable(int dd, uint8_t enable, int to)
 {
     struct hci_request rq;
     le_set_advertise_enable_cp enable_cp;
