@@ -1,4 +1,12 @@
-
+#include <sys/ioctl.h>
+#include <errno.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/prctl.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -573,7 +581,7 @@ int main()
             }
             
             if (FD_ISSET(localServerSocket, &rfds)) {
-                // accept client
+                /* accept client */
                 clilen=sizeof(cliaddr);
                 localClientSocket = accept(localServerSocket,(struct sockaddr *)&cliaddr, &clilen);
             }
