@@ -860,7 +860,7 @@ int main(int argc, const char* argv[])
                 adv_params.advtype = 0x00;
                 adv_params.own_bdaddr_type = 0x00;
                 adv_params.direct_bdaddr_type = 0x00;
-                adv_params.direct_bdaddr = BDADDR_ANY;
+                adv_params.direct_bdaddr = *BDADDR_ANY;
                 adv_params.chan_map = 0x07;
                 adv_params.filter = 0x00;
                 
