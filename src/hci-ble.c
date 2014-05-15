@@ -1,20 +1,4 @@
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <sys/prctl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/time.h>
-#include <sys/param.h>
-#include <sys/uio.h>
-#include <sys/poll.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -59,7 +43,6 @@ typedef struct bleno_header_ {
     uint8_t type;
     uint32_t length;
 } __attribute__((__packed__)) bleno_header;
-
 
 
 char advertisementDataBuf[256];
@@ -248,8 +231,12 @@ void set_latency_opt(int l2capSock, uint16_t min, uint16_t max, uint16_t latency
 
 void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
 {
-    if (len < 2)
-    return;
+    le_set_advertising_parameters_cp adv_params;
+    
+    
+    if (len < 2) {
+        return;
+    }
     advertisementDataLen = *buf;
     scanDataLen = *(buf+1);
     buf += 2;
@@ -257,29 +244,28 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     memcpy(scanDataBuf, buf+advertisementDataLen, scanDataLen);
     
     
-    // stop advertising
+    /* stop advertising */
     le_set_advertising_enable(hciSocket, 0, 1000);
     
-    le_set_advertising_parameters_cp adv_params;
     memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
     adv_params.min_interval = 0x20;
     adv_params.max_interval = 0x20;
     adv_params.chan_map = 0x07;
     
     hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
-    // set scan data
+    /* set scan data */
     hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
     
-    // set advertisement data
+    /* set advertisement data */
     hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
     
-    // start advertising
+    /* start advertising */
     le_set_advertising_enable(hciSocket, 1, 1000);
     
-    // set scan data
+    /* set scan data */
     hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
     
-    // set advertisement data
+    /* set advertisement data */
     hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
 }
 
@@ -303,7 +289,7 @@ int strpos(char *haystack, char *needle)
     char *p = strstr(haystack, needle);
     if (p)
     return p - haystack;
-    return -1;   // Not found = -1.
+    return -1;   /* Not found = -1. */
 }
 
 
@@ -332,43 +318,45 @@ int get_cmd(uint8_t* buf, int* skip_len)
 
 int main()
 {
+    /* hci stuff */
     char* hciDeviceIdOverride;
-    int hciDeviceId, hciSocket, previousAdapterState, currentAdapterState;
+    int hciDeviceId, previousAdapterState, currentAdapterState;
     struct hci_dev_info hciDevInfo;
-    // setup l2cap server socket stuff
-    int serverL2capSock;
-    struct sockaddr_l2 sockAddr;
-    socklen_t sockAddrLen;
-    bdaddr_t clientBdAddr;
-    struct l2cap_conninfo l2capConnInfo;
-    socklen_t l2capConnInfoLen;
     uint16_t hciHandle;
     bdaddr_t daddr;
+    uint8_t hciBuf[1024];
+    
+    /* sockets */
+    int hciSocket, serverL2capSock, clientL2capSock, localServerSocket, localClientSocket;
+    int port;
+    struct sockaddr_l2 sockAddr;
+    socklen_t sockAddrLen, addrlen, clilen;
+    bdaddr_t clientBdAddr;
+    struct sockaddr_in servaddr, cliaddr;
+    
+    /* other stuff */
+    struct l2cap_conninfo l2capConnInfo;
+    socklen_t l2capConnInfoLen;
     struct bt_security btSecurity;
     socklen_t btSecurityLen;
-    uint8_t securityLevel = 0;
-    
-    uint8_t hciBuf[1024];
-    int clientL2capSock = -1;
+    uint8_t securityLevel;
     
     
     
-    int localServerSocket,localClientSocket,port;
-    localClientSocket = -1;
-    struct sockaddr_in servaddr,cliaddr;
-    socklen_t addrlen,clilen;
     
-    // initialize variables
+    /* initialize variables */
     previousAdapterState = -1;
     hciDeviceIdOverride = NULL;
-    hciDeviceId = 0;
+    clientL2capSock = -1;
+    localClientSocket = -1;
+    securityLevel = 0;
     
-    // buffering aus
+    /* buffering aus */
     setbuf(stdin, NULL);
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
     
-    // setup signal handlers
+    /* setup signal handlers */
     signal(SIGINT, signalHandler);
     signal(SIGKILL, signalHandler);
     signal(SIGHUP, signalHandler);
@@ -380,15 +368,15 @@ int main()
     if (hciDeviceIdOverride != NULL) {
         hciDeviceId = atoi(hciDeviceIdOverride);
     } else {
-        // if no env variable given, use the first available device
+        /* if no env variable given, use the first available device */
         hciDeviceId = hci_get_route(NULL);
     }
     
     if (hciDeviceId < 0) {
-        hciDeviceId = 0; // use device 0, if device id is invalid
+        hciDeviceId = 0; /* use device 0, if device id is invalid */
     }
     
-    // setup HCI socket
+    /* setup HCI socket */
     memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
     hciSocket = hci_open_dev(hciDeviceId);
     hciDevInfo.dev_id = hciDeviceId;
@@ -397,17 +385,17 @@ int main()
         return -1;
     }
     
-    // reset hci device
+    /* reset hci device */
     hci_reset(hciSocket, hciDeviceId);
     
-    // create socket
+    /* create socket */
     serverL2capSock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
     
-    // grab bt addr to bind
+    /* grab bt addr to bind */
     if (hci_read_bd_addr(hciSocket, &daddr, 1000) == -1){
         daddr = *BDADDR_ANY;
     }
-    // bind
+    /* bind */
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.l2_family = AF_BLUETOOTH;
     sockAddr.l2_bdaddr = daddr;
@@ -455,13 +443,12 @@ int main()
         out_data_buf= outbuf + sizeof(bleno_header);
 
         FD_ZERO(&rfds);
-        //FD_SET(0, &rfds);
         
         FD_SET(localServerSocket, &rfds);
         if (clientL2capSock > 0) {
             FD_SET(clientL2capSock, &rfds);
         }
-        // wait for client before we interact with the socket
+        /* wait for client before we interact with the socket */
         if(localClientSocket > 0) {
             FD_SET(hciSocket, &rfds);
             FD_SET(serverL2capSock, &rfds);
@@ -474,7 +461,7 @@ int main()
         
         if (localClientSocket > 0) {
             const char* adapterState;
-            // get HCI dev info for adapter state
+            /* get HCI dev info for adapter state */
             ioctl(hciSocket, HCIGETDEVINFO, (void *)&hciDevInfo);
             currentAdapterState = hci_test_bit(HCI_UP, &hciDevInfo.flags);
             
@@ -505,7 +492,6 @@ int main()
                 out_header->length = htonl(strlen(adapterState));
                 memcpy(out_data_buf, adapterState, ntohl(out_header->length));
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
-                //printf("adapterState %s\n", adapterState);
             }
         }
         
@@ -513,17 +499,18 @@ int main()
         
         if (selectRetval == -1) {
             if (SIGINT == lastSignal || SIGKILL == lastSignal) {
-                // done
+                /* done */
                 printf("Got sig int or kill\n");
                 break;
             } else if (SIGHUP == lastSignal) {
-                // stop advertising
+                /* stop advertising */
                 
                 printf("SIGHUP stop advertising");
                 le_set_advertising_enable(hciSocket, 0, 1000);
                 
                 
             } else if (SIGUSR1 == lastSignal) {
+                le_set_advertising_parameters_cp adv_params;
                 
                 printf("Reanabling advertisements\n");
                
@@ -531,8 +518,6 @@ int main()
 
                 le_set_advertising_enable(hciSocket, 0, 1000);
                 
-                
-                le_set_advertising_parameters_cp adv_params;
                 memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
                 adv_params.min_interval = 0x20;
                 adv_params.max_interval = 0x20;
@@ -540,37 +525,39 @@ int main()
                 
                 hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
                 
-                // set scan data
+                /* set scan data */
                 hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
                 
-                // set advertisement data
+                /* set advertisement data */
                 hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
                 
-                // start advertising
+                /* start advertising */
                 le_set_advertising_enable(hciSocket, 1, 1000);
                 
-                // set scan data
+                /* set scan data */
                 hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
                 
-                // set advertisement data
+                /* set advertisement data */
                 hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
                 
             }
         } else if (selectRetval) {
             if(FD_ISSET(serverL2capSock, &rfds)) {
-                // there is a client trying to connect
+                /* there is a client trying to connect */
+                char* bdaddrstr;
+                
                 sockAddrLen = sizeof(sockAddr);
                 clientL2capSock = accept(serverL2capSock, (struct sockaddr *)&sockAddr, &sockAddrLen);
                 
                 baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
-                char* bdaddrstr = batostr(&clientBdAddr);
+                bdaddrstr = batostr(&clientBdAddr);
                 out_header->type = CMD_ACCEPTED;
                 out_header->length = htonl(strlen(bdaddrstr));
                 memcpy(out_data_buf, bdaddrstr, ntohl(out_header->length));
                 
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
-                //printf("l2cap_accept %s\n", batostr(&clientBdAddr));
+
                 
                 l2capConnInfoLen = sizeof(l2capConnInfo);
                 getsockopt(clientL2capSock, SOL_L2CAP, L2CAP_CONNINFO, &l2capConnInfo, &l2capConnInfoLen);
@@ -581,7 +568,7 @@ int main()
                 *(uint16_t*)out_data_buf = htons((uint16_t)hciHandle);
                 write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                 
-                //printf("l2cap_hciHandle %d\n", hciHandle);
+
                 
             }
             
@@ -600,7 +587,7 @@ int main()
                 header = (bleno_header*)inputBuffer;
                 offset = 0;
                 
-                // read the header
+                /* read the header */
                 while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
                     offset += len;
                 }
@@ -628,11 +615,12 @@ int main()
                         printf("Got advertisement data\n");
                         set_advertisement_data(hciSocket, data_buf, data_len);
                         break;
+                        
                     case CMD_SET_LATENCY:
                         printf("Got latency data\n");
                         set_latency_opt(clientL2capSock, ntohs(*(data_buf+2)), ntohs(*(data_buf+4)), ntohs(*(data_buf+6)), ntohs(*(data_buf+8)));
-                        //set_latency(hciSocket, dataBuf, data_len);
                         break;
+                        
                     case CMD_DATA:
                         printf("Got data\n");
                         if (process_data(clientL2capSock, data_buf, data_len) == -1) {
@@ -648,10 +636,12 @@ int main()
                             clientL2capSock = -1;
                         }
                         break;
+                        
                     case CMD_DISCONNECT:
                         printf("Got disconnect data\n");
                         hci_disconnect(hciSocket, hciHandle, HCI_OE_USER_ENDED_CONNECTION, 1000);
                         break;
+                        
                     case CMD_READ_RSSI:
                     {
                         uint8_t rssi;
@@ -663,9 +653,9 @@ int main()
                         
                         write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                         
-                        //printf("l2cap_rssi = %d\n", rssi);
                         break;
                     }
+                        
                     default:
                         break;
                 }
@@ -678,8 +668,9 @@ int main()
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
                 if (len <= 0) {
-                    printf("L2CAP Client sock collapsed\n");
                     char* strClientBdAddr;
+                    
+                    printf("L2CAP Client sock collapsed\n");
                     
                     strClientBdAddr = batostr(&clientBdAddr);
                     out_header->type = CMD_DISCONNECTED;
@@ -687,7 +678,6 @@ int main()
                     memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
                     write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                     
-                    //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
                     close(clientL2capSock);
                     clientL2capSock = -1;
                 }else {
@@ -696,9 +686,9 @@ int main()
                     getsockopt(clientL2capSock, SOL_BLUETOOTH, BT_SECURITY, &btSecurity, &btSecurityLen);
                     
                     if (securityLevel != btSecurity.level) {
-                        securityLevel = btSecurity.level;
-                        
                         const char *securityLevelString;
+                        
+                        securityLevel = btSecurity.level;
                         
                         switch(securityLevel) {
                             case BT_SECURITY_LOW:
@@ -722,7 +712,6 @@ int main()
                         memcpy(out_data_buf, securityLevelString, ntohl(out_header->length));
                         write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                         
-                        //printf("l2cap_security %s\n", securityLevelString);
                     }
                     
                     out_header->type = CMD_L2CAP_DATA;
@@ -761,7 +750,7 @@ int main()
     close(localServerSocket);
     close(clientL2capSock);
     close(serverL2capSock);
-    // stop advertising
+    /* stop advertising */
     hci_le_set_advertise_enable(hciSocket, 0, 1000);
     
     close(hciSocket);
