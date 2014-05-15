@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/param.h> /* MAX */
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
