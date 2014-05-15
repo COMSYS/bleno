@@ -866,21 +866,15 @@ int main(int argc, const char* argv[])
                 break;
             } else if (SIGHUP == lastSignal) {
                 // stop advertising
+                
+                printf("SIGHUP stop advertising");
                 le_set_advertising_enable(hciSocket, 0, 1000);
                 
-                le_set_advertising_parameters_cp adv_params;
-                memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
-                adv_params.min_interval = 0x20;
-                adv_params.max_interval = 0x20;
-                adv_params.chan_map = 0x07;
-                hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, 1000);
                 
             } else if (SIGUSR1 == lastSignal) {
                 
                 printf("Reanabling advertisements\n");
-                // stop advertising
-                le_set_advertising_enable(hciSocket, 0, 1000);
-                
+               
                 le_set_advertising_parameters_cp adv_params;
                 memset(&adv_params, 0, sizeof(le_set_advertising_parameters_cp));
                 adv_params.min_interval = 0x20;
