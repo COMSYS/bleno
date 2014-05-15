@@ -11,6 +11,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <string.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
