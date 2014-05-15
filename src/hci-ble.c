@@ -598,11 +598,11 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     adv_params.advtype = 0x00;
     adv_params.own_bdaddr_type = 0x00;
     adv_params.direct_bdaddr_type = 0x00;
-    adv_params.direct_bdaddr = BDADDR_ANY;
+    adv_params.direct_bdaddr = *BDADDR_ANY;
     adv_params.chan_map = 0x07;
     adv_params.filter = 0x00;
     
-    hci_le_set_advertising_settings(hciSocket, (uint8_t*)adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
+    hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
     // set scan data
     hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
     
@@ -864,7 +864,7 @@ int main(int argc, const char* argv[])
                 adv_params.chan_map = 0x07;
                 adv_params.filter = 0x00;
                 
-                hci_le_set_advertising_settings(hciSocket, (uint8_t*)adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
+                hci_le_set_advertising_settings(hciSocket, (uint8_t*)&adv_params, sizeof(le_set_advertising_parameters_cp), 1000);
                 
                 // set scan data
                 hci_le_set_scan_response_data(hciSocket, (uint8_t*)&scanDataBuf, scanDataLen, 1000);
