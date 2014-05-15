@@ -21,12 +21,6 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/l2cap.h>
 
-
-typedef struct bleno_header_ {
-    uint8_t type;
-    uint32_t length;
-} __attribute__((__packed__)) bleno_header;
-
 #define L2CAP_CID_ATT           0x0004
 #define L2CAP_CID_LE_SIGNALING  0x0005
 
@@ -60,12 +54,13 @@ typedef struct bleno_header_ {
 #define CMD_L2CAP_DATA 11
 #define CMD_L2CAP_DATA_STR "l2cap_data"
 
-//#define BUFSIZ 256000
 
-//#define MAX(a,b) (a) > (b) ? (a) : (b)
-char stdinbuffer[BUFSIZ];
+typedef struct bleno_header_ {
+    uint8_t type;
+    uint32_t length;
+} __attribute__((__packed__)) bleno_header;
 
-static const int L2CAP_SO_SNDBUF = 400 * 1024;
+
 
 char advertisementDataBuf[256];
 int advertisementDataLen = 0;
@@ -78,17 +73,6 @@ static void signalHandler(int signal) {
     lastSignal = signal;
 }
 
-struct acl_request {
-    uint16_t handle;
-    uint16_t chanid;
-    uint8_t command;
-    int      event;
-    int      dlen;
-    void     *data;
-    int     rlen;
-    void    *rparam;
-};
-
 
 typedef struct {
 	uint16_t min_interval;
@@ -96,30 +80,6 @@ typedef struct {
 	uint16_t slave_latency;
 	uint16_t timeout_multiplier;
 } __attribute__((__packed__)) conn_param_update_req;
-
-typedef struct {
-    uint16_t acl_length; //1+1+2+8 = 12
-    uint16_t channel_id;
-} __attribute__((__packed__)) acl_header;
-
-
-typedef struct {
-    uint8_t code; // 0x12
-    uint8_t identifier;
-    uint16_t length;
-} __attribute__((__packed__)) le_signaling_packet;
-
-typedef struct {
-    uint16_t acl_length; //1+1+2+8 = 12
-    uint16_t channel_id;
-    uint8_t code; // 0x12
-    uint8_t identifier;
-    uint16_t sig_length; // 2+2+2+2 = 8
-    uint16_t min_interval;
-    uint16_t max_interval;
-    uint16_t slave_latency;
-    uint16_t timeout_multiplier;
-} __attribute__((__packed__)) le_signaling_packet_conn_update_req;
 
 
 void hci_reset(int ctl, int hdev)
@@ -268,21 +228,6 @@ int8_t read_rssi(int hciSocket, int hciHandle) {
     return rssi;
 }
 
-
-int process_data(int clientSocket, uint8_t* buf, int len)
-{
-    int len_written;
-   
-    while(len_written != len && (len_written = write(clientSocket, buf+len_written, len-len_written)) > 0)
-    
-    if (len_written == -1) {
-        printf("Error writing to client %d: %s\n", errno, strerror(errno));
-        return -1;
-    }
-    return 0;
-}
-
-
 void set_latency_opt(int l2capSock, uint16_t min, uint16_t max, uint16_t latency, uint16_t to_multiplier)
 {
     conn_param_update_req req;
@@ -304,7 +249,7 @@ void set_latency_opt(int l2capSock, uint16_t min, uint16_t max, uint16_t latency
 void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
 {
     if (len < 2)
-    	return;
+    return;
     advertisementDataLen = *buf;
     scanDataLen = *(buf+1);
     buf += 2;
@@ -337,6 +282,21 @@ void set_advertisement_data(int hciSocket, uint8_t* buf, int len)
     // set advertisement data
     hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
 }
+
+
+int process_data(int clientSocket, uint8_t* buf, int len)
+{
+    int len_written;
+   
+    while(len_written != len && (len_written = write(clientSocket, buf+len_written, len-len_written)) > 0)
+    
+    if (len_written == -1) {
+        printf("Error writing to client %d: %s\n", errno, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
 
 int strpos(char *haystack, char *needle)
 {
@@ -372,24 +332,19 @@ int get_cmd(uint8_t* buf, int* skip_len)
 
 int main()
 {
-    char *hciDeviceIdOverride = NULL;
-    int hciDeviceId = 0;
-    int hciSocket;
+    char* hciDeviceIdOverride;
+    int hciDeviceId, hciSocket, previousAdapterState, currentAdapterState;
     struct hci_dev_info hciDevInfo;
     
-    int previousAdapterState = -1;
-    int currentAdapterState;
-    const char* adapterState = NULL;
-    
     fd_set rfds;
-    struct timeval tv;
-    int selectRetval;
     
     uint8_t hciBuf[1024];
-    //int len;
-    int i;
     
-    memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
+    // initialize variables
+    previousAdapterState = -1;
+    adapterState = NULL;
+    hciDeviceIdOverride = NULL;
+    hciDeviceId = 0;
     
     // buffering aus
     setbuf(stdin, NULL);
@@ -417,21 +372,16 @@ int main()
     }
     
     // setup HCI socket
+    memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
     hciSocket = hci_open_dev(hciDeviceId);
-    
     hciDevInfo.dev_id = hciDeviceId;
-    
     if (hciSocket == -1) {
         printf("adapterState unsupported\n");
         return -1;
     }
-    hci_reset(hciSocket, hciDeviceId);
     
-    int opt;
-    opt = 1;
-    if(setsockopt(hciSocket, SOL_HCI, HCI_DATA_DIR, &opt, sizeof(opt)) < 0) {
-        printf("Error setting data direction\n");
-    }
+    // reset hci device
+    hci_reset(hciSocket, hciDeviceId);
     
     // setup l2cap channel
     int serverL2capSock;
@@ -496,10 +446,12 @@ int main()
     
     while(1) {
         uint8_t outbuf[4096];
-	uint8_t* out_data_buf;
+        uint8_t* out_data_buf;
         bleno_header* out_header;
+        struct timeval tv;
+        int selectRetval, max_sock;
 
-	out_header = (bleno_header*)outbuf;
+        out_header = (bleno_header*)outbuf;
         out_data_buf= outbuf + sizeof(bleno_header);
 
 
@@ -517,11 +469,13 @@ int main()
             FD_SET(serverL2capSock, &rfds);
             FD_SET(localClientSocket, &rfds);
         }
-        int max_sock = MAX(localServerSocket, MAX(clientL2capSock, MAX(hciSocket, MAX(serverL2capSock, localClientSocket))));
+        max_sock = MAX(localServerSocket, MAX(clientL2capSock, MAX(hciSocket, MAX(serverL2capSock, localClientSocket))));
+        
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
         if (localClientSocket > 0) {
+            const char* adapterState;
             // get HCI dev info for adapter state
             ioctl(hciSocket, HCIGETDEVINFO, (void *)&hciDevInfo);
             currentAdapterState = hci_test_bit(HCI_UP, &hciDevInfo.flags);
@@ -641,10 +595,13 @@ int main()
             
             if (FD_ISSET(localClientSocket, &rfds)) {
                 uint8_t inputBuffer[4096];
-                bleno_header* header = (bleno_header*)inputBuffer;
+                uint8_t* data_buf;
+                bleno_header* header;
+                int len, offset, total_size, data_len;
                 
-                int len;
-                int offset = 0;
+                header = (bleno_header*)inputBuffer;
+                offset = 0;
+                
                 // read the header
                 while (offset != sizeof(bleno_header) && (len = read(localClientSocket, inputBuffer+offset, sizeof(bleno_header)-offset)) > 0) {
                     offset += len;
@@ -653,7 +610,9 @@ int main()
                     close(localClientSocket);
                     break;
                 }
-                int total_size = sizeof(bleno_header)+ntohl(header->length);
+                
+                total_size = sizeof(bleno_header)+ntohl(header->length);
+                
                 while (offset != total_size && ((len = read(localClientSocket, inputBuffer+offset, total_size-offset))) > 0) {
                     offset += len;
                 }
@@ -662,10 +621,10 @@ int main()
                     break;
                 }
                 
-                uint8_t* data_buf = inputBuffer+sizeof(bleno_header);
-                int data_len = ntohl(header->length);
+                data_buf = inputBuffer+sizeof(bleno_header);
+                data_len = ntohl(header->length);
                 
-                uint8_t rssi;
+                
                 switch (header->type) {
                     case CMD_SET_ADVERTISEMENT_DATA:
                         printf("Got advertisement data\n");
@@ -687,7 +646,6 @@ int main()
                             memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
                             write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
                             
-                            //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
                             close(clientL2capSock);
                             clientL2capSock = -1;
                         }
@@ -695,18 +653,10 @@ int main()
                     case CMD_DISCONNECT:
                         printf("Got disconnect data\n");
                         hci_disconnect(hciSocket, hciHandle, HCI_OE_USER_ENDED_CONNECTION, 1000);
-                        
-                        //strClientBdAddr = batostr(&clientBdAddr);
-                        //out_header->type = CMD_DISCONNECTED;
-                        //out_header->length = htonl(strlen(strClientBdAddr));
-                        //memcpy(out_data_buf, strClientBdAddr, ntohl(out_header->length));
-                        //write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
-                        
-                        //printf("l2cap_disconnect %s\n", batostr(&clientBdAddr));
-                        //close(clientL2capSock);
-                        //clientL2capSock = -1;
                         break;
                     case CMD_READ_RSSI:
+                    {
+                        uint8_t rssi;
                         printf("Got read rssi data\n");
                         rssi = read_rssi(hciSocket, hciHandle);
                         out_header->type = CMD_RSSI;
@@ -717,6 +667,7 @@ int main()
                         
                         //printf("l2cap_rssi = %d\n", rssi);
                         break;
+                    }
                     default:
                         break;
                 }
@@ -724,7 +675,7 @@ int main()
             }
             
             if (clientL2capSock > 0 && FD_ISSET(clientL2capSock, &rfds)) {
-		int len;
+                int len;
                 len = read(clientL2capSock, l2capSockBuf, sizeof(l2capSockBuf));
                 
                 if (len <= 0) {
@@ -790,7 +741,7 @@ int main()
             }
             
             if(FD_ISSET(hciSocket, &rfds)) {
-		int len;
+                int len, i;
                 len = read(hciSocket, (void*)hciBuf, sizeof(hciBuf));
                 if (len <= 0) {
                     printf("HCI socket collapsed\n");
