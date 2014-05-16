@@ -42,8 +42,8 @@
 #define CMD_DISCONNECTED_STR "l2cap_disconnect"
 #define CMD_ACCEPTED 7
 #define CMD_ACCEPTED_STR "l2cap_accept"
-#define CMD_HCIHANDLE 8
-#define CMD_HCIHANDLE_STR "l2cap_hciHandle"
+#define CMD_RESERVED 8
+#define CMD_RESERVED_STR "l2cap_hciHandle"
 #define CMD_ADAPTERSTATE 9
 #define CMD_ADAPTERSTATE_STR "adapterState"
 #define CMD_SECURITY    10
@@ -564,25 +564,19 @@ int main()
                 
                 baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
                 bdaddrstr = batostr(&clientBdAddr);
-                out_header->type = CMD_ACCEPTED;
-                out_header->length = htonl(strlen(bdaddrstr));
-                memcpy(out_data_buf, bdaddrstr, ntohl(out_header->length));
-                
-                write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
-                
-
                 
                 l2capConnInfoLen = sizeof(l2capConnInfo);
                 getsockopt(clientL2capSock, SOL_L2CAP, L2CAP_CONNINFO, &l2capConnInfo, &l2capConnInfoLen);
                 hciHandle = l2capConnInfo.hci_handle;
                 
-                out_header->type = CMD_HCIHANDLE;
-                out_header->length = htonl(sizeof(uint16_t));
+                
+                out_header->type = CMD_ACCEPTED;
+                out_header->length = htonl(strlen(bdaddrstr)+sizeof(uint16_t));
                 *(uint16_t*)out_data_buf = htons((uint16_t)hciHandle);
-                write(localClientSocket,outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+                memcpy(out_data_buf+sizeof(uint16_t), bdaddrstr, strlen(bdaddrstr));
                 
-
-                
+                write(localClientSocket, outbuf, sizeof(bleno_header)+ntohl(out_header->length));
+               
             }
             
             if (FD_ISSET(localServerSocket, &rfds)) {
