@@ -625,7 +625,7 @@ int main()
                         
                     case CMD_SET_LATENCY:
                         printf("Got latency data\n");
-                        set_latency_opt(clientL2capSock, ntohs(*(data_buf+2)), ntohs(*(data_buf+4)), ntohs(*(data_buf+6)), ntohs(*(data_buf+8)));
+                        set_latency_opt(clientL2capSock, ntohs(*(data_buf)), ntohs(*(data_buf+2)), ntohs(*(data_buf+4)), ntohs(*(data_buf+6)));
                         break;
                         
                     case CMD_DATA:
